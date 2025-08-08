@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+// src/routes/Log.tsx
+import { useEffect, useMemo, useState } from 'react';
 import ExercisePicker from '../components/ExercisePicker';
 import SetEditor from '../components/SetEditor';
 import InlineSetEditor from '../components/InlineSetEditor';
@@ -7,6 +8,28 @@ import { useWorkoutStore } from '../state/useWorkoutStore';
 import type { Mood, Exercise } from '../types';
 
 const MOODS: Mood[] = ['tired','energized','focused','stressed','sore','meh','ok'];
+
+// helpers for date/time inputs
+function nowDateStr() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function nowTimeStr() {
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mi}`;
+}
+function localDateTimeToISO(dateStr: string, timeStr: string) {
+  // combine local date+time into a Date and return ISO (with timezone)
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const [hh,mm] = timeStr.split(':').map(Number);
+  const local = new Date(y, (m - 1), d, hh, mm, 0, 0);
+  return local.toISOString();
+}
 
 export default function Log() {
   const activeWorkoutId = useWorkoutStore(s => s.activeWorkoutId);
@@ -17,6 +40,11 @@ export default function Log() {
   const [sets, setSets] = useState<any[]>([]);
   const [mood, setMood] = useState<Mood | ''>('');
   const [notes, setNotes] = useState('');
+
+  // NEW: date/time state for the workout (defaults to now)
+  const [dateStr, setDateStr] = useState(nowDateStr());
+  const [timeStr, setTimeStr] = useState(nowTimeStr());
+
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
 
@@ -28,8 +56,15 @@ export default function Log() {
   }, [activeWorkoutId]);
 
   const startWorkout = async () => {
-    const w = await createWorkout({ mood: mood || null, notes: notes || null });
+    const dateIso = localDateTimeToISO(dateStr, timeStr);
+    const w = await createWorkout({ date: dateIso, mood: mood || null, notes: notes || null });
     setActiveWorkoutId(w.id);
+  };
+
+  const saveWorkoutDateTime = async () => {
+    if (!activeWorkoutId) return;
+    const dateIso = localDateTimeToISO(dateStr, timeStr);
+    await upsertWorkout(activeWorkoutId, { date: dateIso });
   };
 
   const finishWorkout = async () => {
@@ -40,6 +75,8 @@ export default function Log() {
     setExerciseId(null);
     setNotes('');
     setMood('');
+    setDateStr(nowDateStr());
+    setTimeStr(nowTimeStr());
   };
 
   const onAddSet = async (s: { weight: number; reps: number; rpe?: number|null; failed?: boolean }) => {
@@ -83,6 +120,24 @@ export default function Log() {
             <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" />
           </div>
         </div>
+
+        {/* NEW: date + time pickers */}
+        <div className="row">
+          <div>
+            <label>Workout date</label>
+            <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} />
+          </div>
+          <div>
+            <label>Workout time</label>
+            <input type="time" value={timeStr} onChange={e => setTimeStr(e.target.value)} />
+          </div>
+          {activeWorkoutId && (
+            <div style={{ alignSelf: 'end' }}>
+              <button className="ghost" onClick={saveWorkoutDateTime}>Save date/time</button>
+            </div>
+          )}
+        </div>
+
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <button onClick={startWorkout} disabled={!!activeWorkoutId} className="primary">Start workout</button>
           <button onClick={finishWorkout} disabled={!activeWorkoutId}>Finish workout</button>
@@ -139,7 +194,7 @@ export default function Log() {
             <p>No sets yet.</p>
           )
         ) : (
-          <p>Start a workout to begin logging sets.</p>
+          <p>Pick a date/time and start a workout to begin logging sets.</p>
         )}
       </div>
     </div>
