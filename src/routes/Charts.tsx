@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getExercises, listWorkouts, listSetsByWorkout } from '../lib/api';
 import type { Exercise } from '../types';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { estimate1RM } from '../utils/oneRM';
 
 // Timeframe options
@@ -14,6 +14,7 @@ const TIMEFRAMES = [
 ] as const;
 
 type TFKey = typeof TIMEFRAMES[number]['key'];
+type ChartRow = { date: string; oneRM: number; volume: number };
 
 function cutoffDate(tf: TFKey): Date | null {
   const now = new Date();
@@ -29,7 +30,10 @@ export default function Charts() {
   const [exerciseId, setExerciseId] = useState<string>('');
   const [tf, setTf] = useState<TFKey>('all');
 
-  const [chartData, setChartData] = useState<{ date: string; oneRM: number }[]>([]);
+  const [showOneRM, setShowOneRM] = useState(true);
+  const [showVolume, setShowVolume] = useState(true);
+
+  const [chartData, setChartData] = useState<ChartRow[]>([]);
   const [tableData, setTableData] = useState<{
     dateISO: string;
     date: string;
@@ -53,7 +57,7 @@ export default function Charts() {
       const ws = await listWorkouts(1000); // adjust if you’ve got years of data
 
       const rows: { dateISO: string; date: string; sets: number; minKg: number; maxKg: number; avgKg: number; bestOneRm: number }[] = [];
-      const points: { date: string; oneRM: number }[] = [];
+      const points: ChartRow[] = [];
 
       for (const w of ws) {
         const when = new Date(w.date);
@@ -66,6 +70,9 @@ export default function Charts() {
         const best = Math.max(...oneRMs);
         const avg = weights.reduce((a,b)=>a+b,0) / weights.length;
 
+        // total volume for this exercise on this day
+        const volume = sets.reduce((acc, s) => acc + s.weight * s.reps, 0);
+
         rows.push({
           dateISO: new Date(w.date).toISOString(),
           date: new Date(w.date).toLocaleDateString('en-GB'), // DD/MM/YYYY
@@ -76,10 +83,14 @@ export default function Charts() {
           bestOneRm: Math.round(best),
         });
 
-        points.push({ date: new Date(w.date).toLocaleDateString('en-GB'), oneRM: Math.round(best) });
+        points.push({
+          date: new Date(w.date).toLocaleDateString('en-GB'),
+          oneRM: Math.round(best),
+          volume: Math.round(volume), // kg·reps
+        });
       }
 
-      // Keep chart chronological, but we’ll sort the table at render time.
+      // Keep chart chronological; table will be sorted at render time.
       rows.reverse();
       points.reverse();
 
@@ -108,15 +119,43 @@ export default function Charts() {
               </select>
             </div>
           </div>
+
+          <div className="row" style={{ gap: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={showOneRM} onChange={e => setShowOneRM(e.target.checked)} />
+              Show 1RM
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={showVolume} onChange={e => setShowVolume(e.target.checked)} />
+              Show Volume
+            </label>
+          </div>
         </div>
+
         <div style={{ height: 360, marginTop: 16 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
-              <YAxis />
+              {/* Left axis: 1RM (kg) */}
+              <YAxis yAxisId="left" />
+              {/* Right axis: Volume (kg·reps) */}
+              <YAxis yAxisId="right" orientation="right" />
               <Tooltip />
-              <Line type="monotone" dataKey="oneRM" dot={false} />
+              <Legend />
+              {showOneRM && (
+                <Line yAxisId="left" type="monotone" dataKey="oneRM" name="Est. 1RM (kg)" dot={false} />
+              )}
+              {showVolume && (
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="volume"
+                  name="Volume (kg·reps)"
+                  dot={false}
+                  stroke="#e74c3c" // red
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
