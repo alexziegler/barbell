@@ -1,0 +1,13 @@
+:root { font-family: ui-sans-serif, system-ui, Arial, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #0b0c0f; color: #e6e7eb; }
+a { color: inherit; text-decoration: none; }
+.container { max-width: 920px; margin: 0 auto; padding: 16px; }
+.card { background: #14161b; border: 1px solid #232733; border-radius: 12px; padding: 16px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+input, select, button, textarea { background: #0f1116; color: #e6e7eb; border: 1px solid #2a2f3b; border-radius: 8px; padding: 10px 12px; }
+button.primary { background: #5b7cfa; border-color: #5b7cfa; cursor: pointer; }
+button.ghost { background: transparent; }
+label { font-size: 12px; opacity: .8; margin-bottom: 6px; display:block; }
+.grid { display: grid; gap: 12px; }
+.grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
