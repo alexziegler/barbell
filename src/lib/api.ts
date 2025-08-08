@@ -27,6 +27,16 @@ export async function addSet(workout_id: string, set: { exercise_id: string; wei
   if (error) throw error; return data as SetEntry;
 }
 
+export async function updateSet(id: string, patch: Partial<Pick<SetEntry,'exercise_id'|'weight'|'reps'|'rpe'|'failed'|'notes'>>): Promise<SetEntry> {
+  const { data, error } = await supabase.from('sets').update(patch).eq('id', id).select('*').single();
+  if (error) throw error; return data as SetEntry;
+}
+
+export async function deleteSet(id: string): Promise<void> {
+  const { error } = await supabase.from('sets').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function listWorkouts(limit = 30): Promise<Workout[]> {
   const { data, error } = await supabase.from('workouts').select('*').order('date', { ascending: false }).limit(limit);
   if (error) throw error; return data as Workout[];

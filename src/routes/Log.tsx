@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import ExercisePicker from '../components/ExercisePicker';
 import SetEditor from '../components/SetEditor';
-import { addSet, createWorkout, listSetsByWorkout, upsertWorkout } from '../lib/api';
+import InlineSetEditor from '../components/InlineSetEditor';
+import { addSet, createWorkout, listSetsByWorkout, upsertWorkout, updateSet, deleteSet, getExercises } from '../lib/api';
 import { useWorkoutStore } from '../state/useWorkoutStore';
-import type { Mood } from '../types';
+import type { Mood, Exercise } from '../types';
 
 const MOODS: Mood[] = ['tired','energized','focused','stressed','sore','meh','ok'];
 
@@ -16,6 +17,10 @@ export default function Log() {
   const [sets, setSets] = useState<any[]>([]);
   const [mood, setMood] = useState<Mood | ''>('');
   const [notes, setNotes] = useState('');
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+
+  useEffect(() => { getExercises().then(setExercises); }, []);
 
   useEffect(() => {
     if (!activeWorkoutId) return;
@@ -38,12 +43,25 @@ export default function Log() {
   };
 
   const onAddSet = async (s: { weight: number; reps: number; rpe?: number|null; failed?: boolean }) => {
-    if (!activeWorkoutId || !exerciseId) {
-      alert('Pick an exercise and start a workout first');
-      return;
-    }
+    if (!activeWorkoutId || !exerciseId) { alert('Pick an exercise and start a workout first'); return; }
     const kg = units === 'kg' ? s.weight : s.weight * 0.45359237;
     await addSet(activeWorkoutId, { exercise_id: exerciseId, weight: kg, reps: s.reps, rpe: s.rpe ?? null, failed: s.failed ?? false });
+    const updated = await listSetsByWorkout(activeWorkoutId);
+    setSets(updated);
+  };
+
+  const onSaveSet = async (id: string, patch: any) => {
+    if (!activeWorkoutId) return;
+    await updateSet(id, patch);
+    const updated = await listSetsByWorkout(activeWorkoutId);
+    setSets(updated);
+    setEditingSetId(null);
+  };
+
+  const onDeleteSet = async (id: string) => {
+    if (!activeWorkoutId) return;
+    if (!confirm('Delete this set?')) return;
+    await deleteSet(id);
     const updated = await listSetsByWorkout(activeWorkoutId);
     setSets(updated);
   };
@@ -86,18 +104,34 @@ export default function Log() {
                   <th>Reps</th>
                   <th>RPE</th>
                   <th>Failed</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {sets.map((s, i) => (
-                  <tr key={s.id}>
-                    <td>{new Date(s.created_at).toLocaleTimeString()}</td>
-                    <td>{s.exercise?.name ?? '—'}</td>
-                    <td style={{ textAlign: 'center' }}>{s.weight}</td>
-                    <td style={{ textAlign: 'center' }}>{s.reps}</td>
-                    <td style={{ textAlign: 'center' }}>{s.rpe ?? '—'}</td>
-                    <td style={{ textAlign: 'center' }}>{s.failed ? '✔︎' : ''}</td>
-                  </tr>
+                {sets.map((s: any) => (
+                  editingSetId === s.id ? (
+                    <InlineSetEditor
+                      key={s.id}
+                      set={s}
+                      exercises={exercises}
+                      onSave={(patch) => onSaveSet(s.id, patch)}
+                      onCancel={() => setEditingSetId(null)}
+                      onDelete={() => onDeleteSet(s.id)}
+                    />
+                  ) : (
+                    <tr key={s.id}>
+                      <td>{new Date(s.created_at).toLocaleTimeString()}</td>
+                      <td>{s.exercise?.name ?? '—'}</td>
+                      <td style={{ textAlign: 'center' }}>{s.weight}</td>
+                      <td style={{ textAlign: 'center' }}>{s.reps}</td>
+                      <td style={{ textAlign: 'center' }}>{s.rpe ?? '—'}</td>
+                      <td style={{ textAlign: 'center' }}>{s.failed ? '✔︎' : ''}</td>
+                      <td className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                        <button className="ghost" onClick={() => setEditingSetId(s.id)}>Edit</button>
+                        <button onClick={() => onDeleteSet(s.id)}>Delete</button>
+                      </td>
+                    </tr>
+                  )
                 ))}
               </tbody>
             </table>
