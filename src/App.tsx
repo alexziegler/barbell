@@ -1,6 +1,3 @@
-// =============================
-// src/App.tsx
-// =============================
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 export default function App() {
