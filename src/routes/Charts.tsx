@@ -1,3 +1,4 @@
+// src/routes/Charts.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { getExercises, listWorkouts, listSetsByWorkout } from '../lib/api';
 import type { Exercise } from '../types';
@@ -49,36 +50,39 @@ export default function Charts() {
     (async () => {
       if (!exerciseId) return;
       const cut = cutoffDate(tf);
-      // Grab a decent number of recent workouts (increase if you have years of data)
-      const ws = await listWorkouts(1000);
+      const ws = await listWorkouts(1000); // adjust if you’ve got years of data
 
       const rows: { dateISO: string; date: string; sets: number; minKg: number; maxKg: number; avgKg: number; bestOneRm: number }[] = [];
       const points: { date: string; oneRM: number }[] = [];
 
       for (const w of ws) {
         const when = new Date(w.date);
-        if (cut && when < cut) break; // workouts ordered desc
+        if (cut && when < cut) break; // workouts come desc from API
         const sets = (await listSetsByWorkout(w.id)).filter(s => s.exercise_id === exerciseId);
         if (!sets.length) continue;
+
         const weights = sets.map(s => s.weight);
-        const reps = sets.map(s => s.reps);
         const oneRMs = sets.map(s => estimate1RM(s.weight, s.reps));
         const best = Math.max(...oneRMs);
         const avg = weights.reduce((a,b)=>a+b,0) / weights.length;
+
         rows.push({
           dateISO: new Date(w.date).toISOString(),
-          date: new Date(w.date).toLocaleDateString(),
+          date: new Date(w.date).toLocaleDateString('en-GB'), // DD/MM/YYYY
           sets: sets.length,
           minKg: Math.round(Math.min(...weights)*100)/100,
           maxKg: Math.round(Math.max(...weights)*100)/100,
           avgKg: Math.round(avg*100)/100,
           bestOneRm: Math.round(best),
         });
-        points.push({ date: new Date(w.date).toLocaleDateString(), oneRM: Math.round(best) });
+
+        points.push({ date: new Date(w.date).toLocaleDateString('en-GB'), oneRM: Math.round(best) });
       }
-      // Data came in newest-first; reverse for charts/table ascending by date
+
+      // Keep chart chronological, but we’ll sort the table at render time.
       rows.reverse();
       points.reverse();
+
       setTableData(rows);
       setChartData(points);
     })();
@@ -134,15 +138,17 @@ export default function Charts() {
                 </tr>
               </thead>
               <tbody>
-                {tableData.map(r => (
-                  <tr key={r.dateISO}>
-                    <td>{r.date}</td>
-                    <td style={{ textAlign: 'center' }}>{r.sets}</td>
-                    <td style={{ textAlign: 'center' }}>{r.minKg}</td>
-                    <td style={{ textAlign: 'center' }}>{r.maxKg}</td>
-                    <td style={{ textAlign: 'center' }}>{r.avgKg}</td>
-                    <td style={{ textAlign: 'center' }}>{r.bestOneRm}</td>
-                  </tr>
+                {[...tableData]
+                  .sort((a, b) => b.dateISO.localeCompare(a.dateISO)) // DESC by date for table only
+                  .map(r => (
+                    <tr key={r.dateISO}>
+                      <td>{r.date}</td>
+                      <td style={{ textAlign: 'center' }}>{r.sets}</td>
+                      <td style={{ textAlign: 'center' }}>{r.minKg}</td>
+                      <td style={{ textAlign: 'center' }}>{r.maxKg}</td>
+                      <td style={{ textAlign: 'center' }}>{r.avgKg}</td>
+                      <td style={{ textAlign: 'center' }}>{r.bestOneRm}</td>
+                    </tr>
                 ))}
               </tbody>
             </table>
