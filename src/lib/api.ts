@@ -59,27 +59,7 @@ export async function upsertPRForSet(setId: string): Promise<boolean> {
   return !!data;
 }
 
-export async function getPRs() {
-  const { data, error } = await supabase
-    .from('personal_records')
-    .select('exercise_id, weight, performed_at, exercise:exercises(name)')
-    .order('exercise(name)');
-  if (error) throw error;
-  return (data ?? []).map((r: any) => ({
-    exerciseId: r.exercise_id,
-    exerciseName: r.exercise?.name ?? '—',
-    weight: Number(r.weight),
-    dateISO: r.performed_at,
-  }));
-}
-
 export async function recomputePRs() {
-  const { error } = await supabase.rpc('recompute_prs');
-  if (error) throw error;
-}
-
-// PR helpers
-export async function recomputePRs(): Promise<void> {
   const { error } = await supabase.rpc('recompute_prs');
   if (error) throw error;
 }
