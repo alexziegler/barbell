@@ -6,6 +6,7 @@ import InlineSetEditor from '../components/InlineSetEditor';
 import { addSet, createWorkout, listSetsByWorkout, upsertWorkout, updateSet, deleteSet, getExercises } from '../lib/api';
 import { useWorkoutStore } from '../state/useWorkoutStore';
 import type { Mood, Exercise } from '../types';
+import { upsertPRForSet } from '../lib/api';
 
 const MOODS: Mood[] = ['tired','energized','focused','stressed','sore','meh','ok'];
 
@@ -79,13 +80,42 @@ export default function Log() {
     setTimeStr(nowTimeStr());
   };
 
-  const onAddSet = async (s: { weight: number; reps: number; rpe?: number|null; failed?: boolean }) => {
-    if (!activeWorkoutId || !exerciseId) { alert('Pick an exercise and start a workout first'); return; }
-    const kg = units === 'kg' ? s.weight : s.weight * 0.45359237;
-    await addSet(activeWorkoutId, { exercise_id: exerciseId, weight: kg, reps: s.reps, rpe: s.rpe ?? null, failed: s.failed ?? false });
-    const updated = await listSetsByWorkout(activeWorkoutId);
-    setSets(updated);
-  };
+  const onAddSet = async (s: { weight: number; reps: number; rpe?: number | null; failed?: boolean }) => {
+  if (!activeWorkoutId || !exerciseId) {
+    alert('Pick an exercise and start a workout first');
+    return;
+  }
+
+  const kg = units === 'kg' ? s.weight : s.weight * 0.45359237;
+
+  // Insert and get the new set back (your addSet returns the row with id)
+  const inserted = await addSet(activeWorkoutId, {
+    exercise_id: exerciseId,
+    weight: kg,
+    reps: s.reps,
+    rpe: s.rpe ?? null,
+    failed: s.failed ?? false,
+  });
+
+  // PR check (only if we got an ID)
+  if (inserted?.id) {
+    try {
+      const isPR = await upsertPRForSet(inserted.id);
+      if (isPR) {
+        const exName = exercises.find((e) => e.id === exerciseId)?.name ?? 'Exercise';
+        const pretty = Math.round((kg + Number.EPSILON) * 100) / 100;
+        alert(`🎉 New PR: ${exName} — ${pretty} kg`);
+      }
+    } catch (e) {
+      // Fail silently for PR calculation; logging is optional
+      console.warn('PR upsert failed:', e);
+    }
+  }
+
+  // Refresh sets in the UI
+  const updated = await listSetsByWorkout(activeWorkoutId);
+  setSets(updated);
+};
 
   const onSaveSet = async (id: string, patch: any) => {
     if (!activeWorkoutId) return;

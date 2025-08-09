@@ -2,10 +2,44 @@ import { useState } from 'react';
 import { useWorkoutStore } from '../state/useWorkoutStore';
 import { signOut } from '../lib/api';
 import { supabase } from '../lib/supabaseClient';
+import { recomputePRs } from '../lib/api';
 
 export default function Settings() {
   const units = useWorkoutStore((s) => s.units);
   const setUnits = useWorkoutStore((s) => s.setUnits);
+
+  function RebuildPRs() {
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<string | null>(null);
+    const [err, setErr] = useState<string | null>(null);
+
+    const run = async () => {
+      setBusy(true); setMsg(null); setErr(null);
+      try {
+        await recomputePRs();
+        setMsg('PRs recomputed from your existing sets. 🎉');
+      } catch (e: any) {
+        setErr(e.message ?? 'Failed to recompute PRs');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="grid" style={{ gap: 8 }}>
+        <p style={{ opacity: 0.8 }}>
+          One-time backfill: scan all your sets and store the best per exercise.
+        </p>
+        {msg && <div style={{ color: '#8eff8e' }}>{msg}</div>}
+        {err && <div style={{ color: '#ff7b7b' }}>{err}</div>}
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button className="primary" onClick={run} disabled={busy}>
+            {busy ? 'Rebuilding…' : 'Rebuild PRs'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid" style={{ gap: 12 }}>
@@ -25,6 +59,11 @@ export default function Settings() {
       <div className="card grid" style={{ gap: 12, maxWidth: 520 }}>
         <h3 style={{ marginTop: 0 }}>Password</h3>
         <PasswordChanger />
+      </div>
+
+      <div className="card grid" style={{ gap: 12, maxWidth: 520 }}>
+        <h3 style={{ marginTop: 0 }}>Personal Records</h3>
+        <RebuildPRs />
       </div>
 
       {/* Sign out */}

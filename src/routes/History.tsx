@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listWorkouts, listSetsByWorkout, updateSet, deleteSet, getExercises } from '../lib/api';
 import { supabase } from '../lib/supabaseClient';
+import { getPRs } from '../lib/api';
 import InlineSetEditor from '../components/InlineSetEditor';
 
 type PR = { exerciseId: string; exerciseName: string; weight: number; dateISO: string };
@@ -28,28 +29,12 @@ export default function History() {
   // Load workouts & exercises
   useEffect(() => {
     (async () => {
-      const ws = await listWorkouts(400);
-      setWorkouts(ws);
-
-      const exs = await getExercises();
-      setAllExercises(exs.map(e => ({ id: e.id, name: e.name })));
-
-      // Map workouts to exercises
-      const ids = ws.map(w => w.id);
-      if (ids.length) {
-        const { data } = await supabase
-          .from('sets')
-          .select('workout_id, exercise:exercises(name)')
-          .in('workout_id', ids);
-
-        if (data) {
-          const map: Record<string, Set<string>> = {};
-          for (const row of data as any[]) {
-            if (!map[row.workout_id]) map[row.workout_id] = new Set();
-            map[row.workout_id].add(row.exercise?.name ?? '—');
-          }
-          setWorkoutExercises(map);
-        }
+      setLoadingPRs(true);
+      try {
+        const results = await getPRs();
+        setPrs(results);
+      } finally {
+        setLoadingPRs(false);
       }
     })();
   }, []);

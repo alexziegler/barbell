@@ -52,3 +52,28 @@ export async function listSetsByWorkout(workout_id: string): Promise<(SetEntry &
 }
 
 export async function signOut() { await supabase.auth.signOut(); }
+
+export async function upsertPRForSet(setId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('upsert_pr_for_set', { p_set_id: setId });
+  if (error) throw error;
+  return !!data;
+}
+
+export async function getPRs() {
+  const { data, error } = await supabase
+    .from('personal_records')
+    .select('exercise_id, weight, performed_at, exercise:exercises(name)')
+    .order('exercise(name)');
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    exerciseId: r.exercise_id,
+    exerciseName: r.exercise?.name ?? '—',
+    weight: Number(r.weight),
+    dateISO: r.performed_at,
+  }));
+}
+
+export async function recomputePRs() {
+  const { error } = await supabase.rpc('recompute_prs');
+  if (error) throw error;
+}
