@@ -1,18 +1,30 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 export default function Login() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'password'|'magic'>('password');
 
   const [err, setErr] = useState<string | null>(null);
-
-  // password mode
   const [emailForPw, setEmailForPw] = useState('');
   const [password, setPassword] = useState('');
 
-  // magic link mode
   const [emailForMagic, setEmailForMagic] = useState('');
   const [sent, setSent] = useState(false);
+
+  // ⬇️ If already signed in, or when a sign-in occurs, go home
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data.session) navigate('/');
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      if (session) navigate('/');
+    });
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
+  }, [navigate]);
 
   const onPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,15 +34,16 @@ export default function Login() {
       password,
     });
     if (error) setErr(error.message);
-    // success will redirect via AuthGate
+    else navigate('/'); // ⬅️ explicit redirect after success
   };
 
   const onMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+    const redirectTo = import.meta.env.DEV ? 'http://localhost:5173' : window.location.origin;
     const { error } = await supabase.auth.signInWithOtp({
       email: emailForMagic.trim(),
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: redirectTo },
     });
     if (error) setErr(error.message);
     else setSent(true);
@@ -39,7 +52,7 @@ export default function Login() {
   const onForgot = async () => {
     setErr(null);
     const { error } = await supabase.auth.resetPasswordForEmail(emailForPw.trim(), {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: import.meta.env.DEV ? 'http://localhost:5173/login' : `${window.location.origin}/login`,
     });
     if (error) setErr(error.message);
     else alert('If that email exists, a reset link has been sent.');
@@ -51,12 +64,8 @@ export default function Login() {
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0 }}>Sign in</h2>
           <div className="row" style={{ gap: 8 }}>
-            <button className={mode === 'password' ? 'primary' : 'ghost'} onClick={() => setMode('password')}>
-              Password
-            </button>
-            <button className={mode === 'magic' ? 'primary' : 'ghost'} onClick={() => setMode('magic')}>
-              Magic link
-            </button>
+            <button className={mode === 'password' ? 'primary' : 'ghost'} onClick={() => setMode('password')}>Password</button>
+            <button className={mode === 'magic' ? 'primary' : 'ghost'} onClick={() => setMode('magic')}>Magic link</button>
           </div>
         </div>
 
@@ -64,25 +73,11 @@ export default function Login() {
           <form onSubmit={onPasswordLogin} className="grid" style={{ gap: 12 }}>
             <div>
               <label>Email</label>
-              <input
-                value={emailForPw}
-                onChange={(e) => setEmailForPw(e.target.value)}
-                placeholder="you@example.com"
-                type="email"
-                autoComplete="username"
-                required
-              />
+              <input value={emailForPw} onChange={(e) => setEmailForPw(e.target.value)} placeholder="you@example.com" type="email" autoComplete="username" required />
             </div>
             <div>
               <label>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-              />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" required />
             </div>
             {err && <p style={{ color: '#ff7b7b' }}>{err}</p>}
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -94,20 +89,10 @@ export default function Login() {
           <form onSubmit={onMagicLink} className="grid" style={{ gap: 12 }}>
             <div>
               <label>Email</label>
-              <input
-                value={emailForMagic}
-                onChange={(e) => setEmailForMagic(e.target.value)}
-                placeholder="you@example.com"
-                required
-                type="email"
-              />
+              <input value={emailForMagic} onChange={(e) => setEmailForMagic(e.target.value)} placeholder="you@example.com" required type="email" />
             </div>
             {err && <p style={{ color: '#ff7b7b' }}>{err}</p>}
-            {!sent ? (
-              <button className="primary" type="submit">Send magic link</button>
-            ) : (
-              <p>Check your email for a magic link.</p>
-            )}
+            {!sent ? <button className="primary" type="submit">Send magic link</button> : <p>Check your email for a magic link.</p>}
           </form>
         )}
       </div>
