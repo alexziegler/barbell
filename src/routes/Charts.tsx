@@ -41,7 +41,7 @@ function startDateFor(tf: Timeframe): Date | null {
 export default function Charts() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exerciseId, setExerciseId] = useState<string>('');
-  const [timeframe, setTimeframe] = useState<Timeframe>('all');
+  const [timeframe, setTimeframe] = useState<Timeframe>('6m');
 
   const [data, setData] = useState<Point[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,35 +60,32 @@ export default function Charts() {
 
   useEffect(() => {
     if (!exerciseId) { setData([]); return; }
+
     const fetchData = async () => {
       setLoading(true);
       try {
-        const sd = startDateFor(timeframe);
-        let q = supabase
+        const { data: rows, error } = await supabase
           .from('sets')
-          .select('id, weight, reps, failed, workout:workouts(date)')
+          .select('id, weight, reps, failed, created_at, workout:workouts(date)')
           .eq('exercise_id', exerciseId)
-          .order('created_at', { ascending: true });
-
-        if (sd) {
-          // filter by workout date where available, else created_at
-          q = q.gte('created_at', sd.toISOString());
-        }
-
-        const { data: rows, error } = await q;
+          .order('created_at', { ascending: true }); // no server-side date filter
         if (error) throw error;
 
-        // Group by workout date (YYYY-MM-DD local) and compute metrics
+        const start = startDateFor(timeframe); // Date | null
+
+        // Group by performed day and compute metrics
         const byDay = new Map<string, { heaviest: number; oneRM: number; volume: number }>();
 
         for (const r of (rows ?? []) as any[]) {
-          // skip failed
           if (r.failed) continue;
 
-          const whenISO = r.workout?.date ?? r.created_at;
-          const dayKey = new Date(whenISO);
-          // Normalize to local YYYY-MM-DD
-          const key = `${dayKey.getFullYear()}-${String(dayKey.getMonth() + 1).padStart(2, '0')}-${String(dayKey.getDate()).padStart(2, '0')}`;
+          const performedISO = r.workout?.date ?? r.created_at; // << actual training date
+          const performed = new Date(performedISO);
+
+          // Client-side timeframe filter based on performed date
+          if (start && performed < start) continue;
+
+          const key = `${performed.getFullYear()}-${String(performed.getMonth() + 1).padStart(2, '0')}-${String(performed.getDate()).padStart(2, '0')}`;
 
           const oneRmEstimate = estimate1RM(Number(r.weight), Number(r.reps));
           const volume = Number(r.weight) * Number(r.reps);
@@ -101,14 +98,13 @@ export default function Charts() {
           });
         }
 
-        // Convert to sorted array
-        const points: Point[] = Array.from(byDay.entries())
+        const points = Array.from(byDay.entries())
           .map(([key, v]) => {
             const [y, m, d] = key.split('-').map(Number);
             const dt = new Date(y, m - 1, d);
             return {
               dateISO: dt.toISOString(),
-              dateLabel: formatDDMMYYYY(dt),
+              dateLabel: dt.toLocaleDateString('en-GB'),
               heaviest: v.heaviest || null,
               oneRM: v.oneRM || null,
               volume: v.volume,
@@ -121,6 +117,7 @@ export default function Charts() {
         setLoading(false);
       }
     };
+
     fetchData();
   }, [exerciseId, timeframe]);
 
@@ -129,9 +126,9 @@ export default function Charts() {
   return (
     <div className="grid" style={{ gap: 12 }}>
       {/* Controls */}
-      <div className="card">
-        <div className="row" style={{ gap: 12, alignItems: 'end' }}>
-          <div>
+      <div className="card controls">
+        <div className="controls__row">
+          <div className="controls__field">
             <label>Exercise</label>
             <select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)}>
               {exercises.map((e) => (
@@ -140,9 +137,9 @@ export default function Charts() {
             </select>
           </div>
 
-          <div>
+          <div className="controls__field">
             <label>Timeframe</label>
-            <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as Timeframe)}>
+            <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as any)}>
               <option value="all">All time</option>
               <option value="6m">Last 6 months</option>
               <option value="3m">Last 3 months</option>
@@ -150,35 +147,41 @@ export default function Charts() {
             </select>
           </div>
 
-          <div className="row" style={{ gap: 8 }}>
-            <div>
-              <label style={{ display: 'block' }}>Series</label>
-              <button className={showHeaviest ? 'primary' : 'ghost'} onClick={() => setShowHeaviest(v => !v)}>
-                Heaviest
-              </button>
-              <button className={showOneRM ? 'primary' : 'ghost'} onClick={() => setShowOneRM(v => !v)}>
-                1RM
-              </button>
-              <button className={showVolume ? 'primary' : 'ghost'} onClick={() => setShowVolume(v => !v)}>
-                Volume
-              </button>
+          <div className="controls__field">
+            <label>Series</label>
+            <div className="controls__series">
+              <button
+                className={`btn-toggle ${showHeaviest ? 'is-active' : ''}`}
+                onClick={() => setShowHeaviest(v => !v)}
+                type="button"
+              >Heaviest</button>
+              <button
+                className={`btn-toggle ${showOneRM ? 'is-active' : ''}`}
+                onClick={() => setShowOneRM(v => !v)}
+                type="button"
+              >1RM</button>
+              <button
+                className={`btn-toggle ${showVolume ? 'is-active' : ''}`}
+                onClick={() => setShowVolume(v => !v)}
+                type="button"
+              >Volume</button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Chart */}
-      <div className="card" style={{ height: 380 }}>
-        <h3 style={{ marginTop: 0 }}>{exName}</h3>
+      <div className="chart-card">
+        <h3 className="chart-title">{exName}</h3>
         {loading ? (
           <p>Loading…</p>
         ) : data.length === 0 ? (
           <p>No data for this selection.</p>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 12, right: 24, left: 8, bottom: 12 }}>
+            <LineChart data={data} margin={{ top: 8, right: 16, left: 4, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="dateLabel" />
+              <XAxis dataKey="dateLabel" interval="preserveStartEnd" />
               <YAxis
                 yAxisId="left"
                 label={{ value: 'Weight / 1RM (kg)', angle: -90, position: 'insideLeft' }}
@@ -190,46 +193,11 @@ export default function Charts() {
                 label={{ value: 'Volume (kg·reps)', angle: 90, position: 'insideRight' }}
                 allowDecimals={false}
               />
-              <Tooltip
-                formatter={(value: any, name) => {
-                  if (name === 'Volume') return [`${Math.round(value)}`, 'Volume (kg·reps)'];
-                  return [`${Math.round(value)}`, name];
-                }}
-              />
+              <Tooltip formatter={(v:any, name) => [Math.round(v).toString(), name]} />
               <Legend />
-              {/* Blue: Heaviest successful single set */}
-              <Line
-                type="monotone"
-                dataKey="heaviest"
-                name="Heaviest"
-                yAxisId="left"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={false}
-                hide={!showHeaviest}
-              />
-              {/* Red: Estimated 1RM */}
-              <Line
-                type="monotone"
-                dataKey="oneRM"
-                name="Estimated 1RM"
-                yAxisId="left"
-                stroke="#ef4444"
-                strokeWidth={2}
-                dot={false}
-                hide={!showOneRM}
-              />
-              {/* Green: Volume (right axis) */}
-              <Line
-                type="monotone"
-                dataKey="volume"
-                name="Volume"
-                yAxisId="right"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={false}
-                hide={!showVolume}
-              />
+              <Line type="monotone" dataKey="heaviest" name="Heaviest" yAxisId="left" stroke="#3b82f6" strokeWidth={2} dot={false} hide={!showHeaviest} />
+              <Line type="monotone" dataKey="oneRM"   name="Estimated 1RM" yAxisId="left" stroke="#ef4444" strokeWidth={2} dot={false} hide={!showOneRM} />
+              <Line type="monotone" dataKey="volume"  name="Volume" yAxisId="right" stroke="#10b981" strokeWidth={2} dot={false} hide={!showVolume} />
             </LineChart>
           </ResponsiveContainer>
         )}
