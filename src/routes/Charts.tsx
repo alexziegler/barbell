@@ -1,199 +1,237 @@
 // src/routes/Charts.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { getExercises, listWorkouts, listSetsByWorkout } from '../lib/api';
-import type { Exercise } from '../types';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { supabase } from '../lib/supabaseClient';
+import { getExercises } from '../lib/api';
 import { estimate1RM } from '../utils/oneRM';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
 
-// Timeframe options
-const TIMEFRAMES = [
-  { key: 'all', label: 'All time' },
-  { key: '6m', label: 'Last 6 months' },
-  { key: '3m', label: 'Last 3 months' },
-  { key: '1m', label: 'Last month' },
-] as const;
+type Exercise = { id: string; name: string };
+type Timeframe = 'all' | '6m' | '3m' | '1m';
 
-type TFKey = typeof TIMEFRAMES[number]['key'];
-type ChartRow = { date: string; oneRM: number; volume: number };
+type Point = {
+  dateISO: string;          // full ISO for sorting
+  dateLabel: string;        // DD/MM/YYYY for ticks
+  heaviest: number | null;  // heaviest successful single-set weight
+  oneRM: number | null;     // estimated 1RM (Epley)
+  volume: number;           // sum(weight * reps) successful sets
+};
 
-function cutoffDate(tf: TFKey): Date | null {
-  const now = new Date();
-  const d = new Date(now);
-  if (tf === '6m') { d.setMonth(now.getMonth() - 6); return d; }
-  if (tf === '3m') { d.setMonth(now.getMonth() - 3); return d; }
-  if (tf === '1m') { d.setMonth(now.getMonth() - 1); return d; }
-  return null; // all time
+function formatDDMMYYYY(iso: string | number | Date) {
+  return new Date(iso).toLocaleDateString('en-GB');
+}
+
+function startDateFor(tf: Timeframe): Date | null {
+  const d = new Date();
+  if (tf === 'all') return null;
+  if (tf === '6m') { d.setMonth(d.getMonth() - 6); return d; }
+  if (tf === '3m') { d.setMonth(d.getMonth() - 3); return d; }
+  if (tf === '1m') { d.setMonth(d.getMonth() - 1); return d; }
+  return null;
 }
 
 export default function Charts() {
-  const [exs, setExs] = useState<Exercise[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exerciseId, setExerciseId] = useState<string>('');
-  const [tf, setTf] = useState<TFKey>('all');
+  const [timeframe, setTimeframe] = useState<Timeframe>('all');
 
-  const [showOneRM, setShowOneRM] = useState(true);
-  const [showVolume, setShowVolume] = useState(true);
+  const [data, setData] = useState<Point[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const [chartData, setChartData] = useState<ChartRow[]>([]);
-  const [tableData, setTableData] = useState<{
-    dateISO: string;
-    date: string;
-    sets: number;
-    minKg: number;
-    maxKg: number;
-    avgKg: number;
-    bestOneRm: number;
-  }[]>([]);
+  // visibility toggles
+  const [showHeaviest, setShowHeaviest] = useState(true); // blue
+  const [showOneRM, setShowOneRM] = useState(true);       // red
+  const [showVolume, setShowVolume] = useState(false);    // green (off by default)
 
-  // load exercises
   useEffect(() => {
-    getExercises().then((e) => { setExs(e); if (e[0]) setExerciseId(e[0].id); });
-  }, []);
+    getExercises().then((list) => {
+      setExercises(list.map((e: any) => ({ id: e.id, name: e.name })));
+      if (list.length && !exerciseId) setExerciseId(list[0].id);
+    });
+  }, []); // load once
 
-  // load data for selected exercise + timeframe
   useEffect(() => {
-    (async () => {
-      if (!exerciseId) return;
-      const cut = cutoffDate(tf);
-      const ws = await listWorkouts(1000); // adjust if you’ve got years of data
+    if (!exerciseId) { setData([]); return; }
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const sd = startDateFor(timeframe);
+        let q = supabase
+          .from('sets')
+          .select('id, weight, reps, failed, workout:workouts(date)')
+          .eq('exercise_id', exerciseId)
+          .order('created_at', { ascending: true });
 
-      const rows: { dateISO: string; date: string; sets: number; minKg: number; maxKg: number; avgKg: number; bestOneRm: number }[] = [];
-      const points: ChartRow[] = [];
+        if (sd) {
+          // filter by workout date where available, else created_at
+          q = q.gte('created_at', sd.toISOString());
+        }
 
-      for (const w of ws) {
-        const when = new Date(w.date);
-        if (cut && when < cut) break; // workouts come desc from API
-        const sets = (await listSetsByWorkout(w.id)).filter(s => s.exercise_id === exerciseId);
-        if (!sets.length) continue;
+        const { data: rows, error } = await q;
+        if (error) throw error;
 
-        const weights = sets.map(s => s.weight);
-        const oneRMs = sets.map(s => estimate1RM(s.weight, s.reps));
-        const best = Math.max(...oneRMs);
-        const avg = weights.reduce((a,b)=>a+b,0) / weights.length;
+        // Group by workout date (YYYY-MM-DD local) and compute metrics
+        const byDay = new Map<string, { heaviest: number; oneRM: number; volume: number }>();
 
-        // total volume for this exercise on this day
-        const volume = sets.reduce((acc, s) => acc + s.weight * s.reps, 0);
+        for (const r of (rows ?? []) as any[]) {
+          // skip failed
+          if (r.failed) continue;
 
-        rows.push({
-          dateISO: new Date(w.date).toISOString(),
-          date: new Date(w.date).toLocaleDateString('en-GB'), // DD/MM/YYYY
-          sets: sets.length,
-          minKg: Math.round(Math.min(...weights)*100)/100,
-          maxKg: Math.round(Math.max(...weights)*100)/100,
-          avgKg: Math.round(avg*100)/100,
-          bestOneRm: Math.round(best),
-        });
+          const whenISO = r.workout?.date ?? r.created_at;
+          const dayKey = new Date(whenISO);
+          // Normalize to local YYYY-MM-DD
+          const key = `${dayKey.getFullYear()}-${String(dayKey.getMonth() + 1).padStart(2, '0')}-${String(dayKey.getDate()).padStart(2, '0')}`;
 
-        points.push({
-          date: new Date(w.date).toLocaleDateString('en-GB'),
-          oneRM: Math.round(best),
-          volume: Math.round(volume), // kg·reps
-        });
+          const oneRmEstimate = estimate1RM(Number(r.weight), Number(r.reps));
+          const volume = Number(r.weight) * Number(r.reps);
+
+          const cur = byDay.get(key) ?? { heaviest: 0, oneRM: 0, volume: 0 };
+          byDay.set(key, {
+            heaviest: Math.max(cur.heaviest, Number(r.weight)),
+            oneRM: Math.max(cur.oneRM, oneRmEstimate),
+            volume: cur.volume + volume,
+          });
+        }
+
+        // Convert to sorted array
+        const points: Point[] = Array.from(byDay.entries())
+          .map(([key, v]) => {
+            const [y, m, d] = key.split('-').map(Number);
+            const dt = new Date(y, m - 1, d);
+            return {
+              dateISO: dt.toISOString(),
+              dateLabel: formatDDMMYYYY(dt),
+              heaviest: v.heaviest || null,
+              oneRM: v.oneRM || null,
+              volume: v.volume,
+            };
+          })
+          .sort((a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime());
+
+        setData(points);
+      } finally {
+        setLoading(false);
       }
+    };
+    fetchData();
+  }, [exerciseId, timeframe]);
 
-      // Keep chart chronological; table will be sorted at render time.
-      rows.reverse();
-      points.reverse();
-
-      setTableData(rows);
-      setChartData(points);
-    })();
-  }, [exerciseId, tf]);
-
-  const exerciseName = useMemo(() => exs.find(e => e.id === exerciseId)?.name ?? '', [exs, exerciseId]);
+  const exName = useMemo(() => exercises.find(e => e.id === exerciseId)?.name ?? '—', [exercises, exerciseId]);
 
   return (
     <div className="grid" style={{ gap: 12 }}>
+      {/* Controls */}
       <div className="card">
-        <div className="row" style={{ alignItems: 'end', justifyContent: 'space-between' }}>
-          <div className="row" style={{ gap: 12 }}>
-            <div>
-              <label>Exercise</label>
-              <select value={exerciseId} onChange={e => setExerciseId(e.target.value)}>
-                {exs.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label>Timeframe</label>
-              <select value={tf} onChange={e => setTf(e.target.value as TFKey)}>
-                {TIMEFRAMES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-            </div>
+        <div className="row" style={{ gap: 12, alignItems: 'end' }}>
+          <div>
+            <label>Exercise</label>
+            <select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)}>
+              {exercises.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
           </div>
 
-          <div className="row" style={{ gap: 12 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={showOneRM} onChange={e => setShowOneRM(e.target.checked)} />
-              Show 1RM
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={showVolume} onChange={e => setShowVolume(e.target.checked)} />
-              Show Volume
-            </label>
+          <div>
+            <label>Timeframe</label>
+            <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as Timeframe)}>
+              <option value="all">All time</option>
+              <option value="6m">Last 6 months</option>
+              <option value="3m">Last 3 months</option>
+              <option value="1m">Last month</option>
+            </select>
           </div>
-        </div>
 
-        <div style={{ height: 360, marginTop: 16 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              {/* Left axis: 1RM (kg) */}
-              <YAxis yAxisId="left" />
-              {/* Right axis: Volume (kg·reps) */}
-              <YAxis yAxisId="right" orientation="right" />
-              <Tooltip />
-              <Legend />
-              {showOneRM && (
-                <Line yAxisId="left" type="monotone" dataKey="oneRM" name="Est. 1RM (kg)" dot={false} />
-              )}
-              {showVolume && (
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="volume"
-                  name="Volume (kg·reps)"
-                  dot={false}
-                  stroke="#e74c3c" // red
-                />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
+          <div className="row" style={{ gap: 8 }}>
+            <div>
+              <label style={{ display: 'block' }}>Series</label>
+              <button className={showHeaviest ? 'primary' : 'ghost'} onClick={() => setShowHeaviest(v => !v)}>
+                Heaviest
+              </button>
+              <button className={showOneRM ? 'primary' : 'ghost'} onClick={() => setShowOneRM(v => !v)}>
+                1RM
+              </button>
+              <button className={showVolume ? 'primary' : 'ghost'} onClick={() => setShowVolume(v => !v)}>
+                Volume
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="card">
-        <h3 style={{ margin: '8px 0 12px' }}>{exerciseName || 'Exercise'} — details</h3>
-        {tableData.length ? (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>Date</th>
-                  <th>Sets</th>
-                  <th>Min (kg)</th>
-                  <th>Max (kg)</th>
-                  <th>Avg (kg)</th>
-                  <th>Best est. 1RM</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...tableData]
-                  .sort((a, b) => b.dateISO.localeCompare(a.dateISO)) // DESC by date for table only
-                  .map(r => (
-                    <tr key={r.dateISO}>
-                      <td>{r.date}</td>
-                      <td style={{ textAlign: 'center' }}>{r.sets}</td>
-                      <td style={{ textAlign: 'center' }}>{r.minKg}</td>
-                      <td style={{ textAlign: 'center' }}>{r.maxKg}</td>
-                      <td style={{ textAlign: 'center' }}>{r.avgKg}</td>
-                      <td style={{ textAlign: 'center' }}>{r.bestOneRm}</td>
-                    </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* Chart */}
+      <div className="card" style={{ height: 380 }}>
+        <h3 style={{ marginTop: 0 }}>{exName}</h3>
+        {loading ? (
+          <p>Loading…</p>
+        ) : data.length === 0 ? (
+          <p>No data for this selection.</p>
         ) : (
-          <p>No sessions for this timeframe.</p>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 12, right: 24, left: 8, bottom: 12 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="dateLabel" />
+              <YAxis
+                yAxisId="left"
+                label={{ value: 'Weight / 1RM (kg)', angle: -90, position: 'insideLeft' }}
+                allowDecimals={false}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                label={{ value: 'Volume (kg·reps)', angle: 90, position: 'insideRight' }}
+                allowDecimals={false}
+              />
+              <Tooltip
+                formatter={(value: any, name) => {
+                  if (name === 'Volume') return [`${Math.round(value)}`, 'Volume (kg·reps)'];
+                  return [`${Math.round(value)}`, name];
+                }}
+              />
+              <Legend />
+              {/* Blue: Heaviest successful single set */}
+              <Line
+                type="monotone"
+                dataKey="heaviest"
+                name="Heaviest"
+                yAxisId="left"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                dot={false}
+                hide={!showHeaviest}
+              />
+              {/* Red: Estimated 1RM */}
+              <Line
+                type="monotone"
+                dataKey="oneRM"
+                name="Estimated 1RM"
+                yAxisId="left"
+                stroke="#ef4444"
+                strokeWidth={2}
+                dot={false}
+                hide={!showOneRM}
+              />
+              {/* Green: Volume (right axis) */}
+              <Line
+                type="monotone"
+                dataKey="volume"
+                name="Volume"
+                yAxisId="right"
+                stroke="#10b981"
+                strokeWidth={2}
+                dot={false}
+                hide={!showVolume}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         )}
       </div>
     </div>

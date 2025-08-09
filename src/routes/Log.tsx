@@ -100,11 +100,13 @@ export default function Log() {
   // PR check (only if we got an ID)
   if (inserted?.id) {
     try {
-      const isPR = await upsertPRForSet(inserted.id);
-      if (isPR) {
-        const exName = exercises.find((e) => e.id === exerciseId)?.name ?? 'Exercise';
-        const pretty = Math.round((kg + Number.EPSILON) * 100) / 100;
-        alert(`🎉 New PR: ${exName} — ${pretty} kg`);
+      const res = await upsertPRForSet(inserted.id);
+      if (res?.new_weight || res?.new_1rm) {
+        const exName = exercises.find(e => e.id === exerciseId)?.name ?? 'Exercise';
+        const parts = [];
+        if (res.new_weight) parts.push('Heaviest');
+        if (res.new_1rm) parts.push('Best 1RM');
+        alert(`🎉 New PR (${parts.join(' & ')}): ${exName}`);
       }
     } catch (e) {
       // Fail silently for PR calculation; logging is optional

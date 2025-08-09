@@ -57,27 +57,51 @@ export async function listSetsByWorkout(workout_id: string): Promise<(SetEntry &
 
 export async function signOut() { await supabase.auth.signOut(); }
 
-export async function upsertPRForSet(setId: string): Promise<boolean> {
+// After inserting a set, update PRs; returns which metrics are new PRs
+export async function upsertPRForSet(setId: string): Promise<{ new_weight: boolean; new_1rm: boolean }> {
   const { data, error } = await supabase.rpc('upsert_pr_for_set', { p_set_id: setId });
   if (error) throw error;
-  return !!data;
+  return (data ?? { new_weight: false, new_1rm: false }) as any;
 }
 
-export async function recomputePRs() {
+export async function recomputePRs(): Promise<void> {
   const { error } = await supabase.rpc('recompute_prs');
   if (error) throw error;
 }
 
-export async function getPRs() {
+// Fetch precomputed PRs for the current user, both metrics
+export async function getPRs(): Promise<Array<{
+  exerciseId: string;
+  exerciseName: string;
+  weightPR: { value: number; dateISO: string } | null;
+  oneRMPR: { value: number; dateISO: string } | null;
+}>> {
   const { data, error } = await supabase
     .from('personal_records')
-    .select('exercise_id, weight, performed_at, exercise:exercises(name)')
-    .order('exercise(name)');
+    .select('exercise_id, metric, value, performed_at, exercise:exercises(name)');
   if (error) throw error;
-  return (data ?? []).map((r: any) => ({
-    exerciseId: r.exercise_id,
-    exerciseName: r.exercise?.name ?? '—',
-    weight: Number(r.weight),
-    dateISO: r.performed_at,
-  }));
+
+  const byEx: Record<string, {
+    name: string;
+    weight?: { value: number; dateISO: string };
+    onerm?: { value: number; dateISO: string };
+  }> = {};
+
+  for (const r of (data ?? []) as any[]) {
+    const exId = r.exercise_id as string;
+    const metric = r.metric as string;
+    const name = r.exercise?.name ?? '—';
+    if (!byEx[exId]) byEx[exId] = { name };
+    if (metric === 'weight') byEx[exId].weight = { value: Number(r.value), dateISO: r.performed_at };
+    if (metric === '1rm') byEx[exId].onerm = { value: Number(r.value), dateISO: r.performed_at };
+  }
+
+  return Object.entries(byEx)
+    .map(([exerciseId, v]) => ({
+      exerciseId,
+      exerciseName: v.name,
+      weightPR: v.weight ?? null,
+      oneRMPR: v.onerm ?? null,
+    }))
+    .sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
 }

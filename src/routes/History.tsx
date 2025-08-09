@@ -12,6 +12,12 @@ import {
 import InlineSetEditor from '../components/InlineSetEditor';
 
 type PR = { exerciseId: string; exerciseName: string; weight: number; dateISO: string };
+type PRRow = {
+  exerciseId: string;
+  exerciseName: string;
+  weightPR: { value: number; dateISO: string } | null;
+  oneRMPR: { value: number; dateISO: string } | null;
+};
 
 function formatDate(iso: string | number | Date) {
   return new Date(iso).toLocaleDateString('en-GB'); // DD/MM/YYYY
@@ -28,8 +34,9 @@ export default function History() {
   const [filterText, setFilterText] = useState('');
 
   // PRs
-  const [prs, setPrs] = useState<PR[]>([]);
+  const [prs, setPrs] = useState<PRRow[]>([]);
   const [loadingPRs, setLoadingPRs] = useState(true);
+  const [prMetric, setPrMetric] = useState<'weight' | '1rm'>('weight');
 
   // Inline edit (one row at a time)
   const [editingSet, setEditingSet] = useState<{ workoutId: string; set: any } | null>(null);
@@ -84,20 +91,19 @@ export default function History() {
   }, [workouts]);
 
   // 3) Load PRs from precomputed table (fast)
+  // load PRs fast
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoadingPRs(true);
       try {
-        const rows = await getPRs(); // [{ exerciseId, exerciseName, weight, dateISO }]
-        if (alive) setPrs(rows);
+        const rows = await getPRs(); // now returns both metrics
+        if (alive) setPrs(rows as any);
       } finally {
         if (alive) setLoadingPRs(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   // Refresh sets for one workout
@@ -160,21 +166,67 @@ export default function History() {
     <div className="grid" style={{ gap: 12 }}>
       {/* PRs panel */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>🏆 Personal Records</h3>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0 }}>🏆 Personal Records</h3>
+          {/* Selector like Charts */}
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className={prMetric === 'weight' ? 'primary' : 'ghost'}
+              onClick={() => setPrMetric('weight')}
+            >
+              Heaviest
+            </button>
+            <button
+              className={prMetric === '1rm' ? 'primary' : 'ghost'}
+              onClick={() => setPrMetric('1rm')}
+            >
+              Best 1RM
+            </button>
+          </div>
+        </div>
+
         {loadingPRs ? (
-          <p>Calculating PRs…</p>
+          <p>Loading PRs…</p>
         ) : prs.length ? (
           <div
             className="grid"
-            style={{ gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
+            style={{ gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
           >
-            {prs.map((p) => (
-              <div key={p.exerciseId} style={{ padding: 8, border: '1px solid #232733', borderRadius: 8 }}>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>{p.exerciseName}</div>
-                <div style={{ fontWeight: 700, fontSize: 18 }}>{p.weight} kg</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>{formatDate(p.dateISO)}</div>
-              </div>
-            ))}
+            {prs
+              // sort by selected metric desc, undefined at the end
+              .slice()
+              .sort((a, b) => {
+                const av =
+                  prMetric === 'weight' ? a.weightPR?.value ?? -Infinity : a.oneRMPR?.value ?? -Infinity;
+                const bv =
+                  prMetric === 'weight' ? b.weightPR?.value ?? -Infinity : b.oneRMPR?.value ?? -Infinity;
+                return bv - av;
+              })
+              .map((p) => {
+                const chosen =
+                  prMetric === 'weight'
+                    ? p.weightPR && { label: 'Heaviest', value: p.weightPR.value, dateISO: p.weightPR.dateISO }
+                    : p.oneRMPR && { label: 'Best 1RM', value: p.oneRMPR.value, dateISO: p.oneRMPR.dateISO };
+
+                return (
+                  <div key={p.exerciseId} style={{ padding: 10, border: '1px solid #232733', borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>{p.exerciseName}</div>
+
+                    {chosen ? (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontWeight: 700, fontSize: 18 }}>
+                          {Math.round(chosen.value)} kg
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                          {new Date(chosen.dateISO).toLocaleDateString('en-GB')}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 6, opacity: 0.7, fontSize: 12 }}>No PR yet</div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         ) : (
           <p>No PRs yet.</p>
