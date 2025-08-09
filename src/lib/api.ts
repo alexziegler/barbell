@@ -1,9 +1,13 @@
 import { supabase } from './supabaseClient';
 import type { Exercise, Workout, SetEntry, Mood, Feeling } from '../types';
 
-export async function getExercises(): Promise<Exercise[]> {
-  const { data, error } = await supabase.from('exercises').select('*').order('name');
-  if (error) throw error; return data as Exercise[];
+export async function getExercises() {
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('*')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data || [];
 }
 
 export async function createWorkout(opts: { date?: string; mood?: Mood|null; feelings?: Feeling[]; notes?: string|null }): Promise<Workout> {
