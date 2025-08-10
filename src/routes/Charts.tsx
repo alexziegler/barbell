@@ -38,6 +38,16 @@ function startDateFor(tf: Timeframe): Date | null {
   return null;
 }
 
+function useCompact() {
+  const [compact, setCompact] = useState<boolean>(() => window.innerWidth < 600);
+  useEffect(() => {
+    const onResize = () => setCompact(window.innerWidth < 600);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return compact;
+}
+
 export default function Charts() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exerciseId, setExerciseId] = useState<string>('');
@@ -45,6 +55,15 @@ export default function Charts() {
 
   const [data, setData] = useState<Point[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const compact = useCompact();
+  const xTicks = useMemo(() => {
+    if (!data.length) return [];
+    const maxTicks = compact ? 5 : 8;
+    const step = Math.max(1, Math.ceil(data.length / maxTicks));
+    // Recharts XAxis uses values from dataKey; we use dateLabel
+    return data.filter((_, i) => i % step === 0).map(p => p.dateLabel);
+  }, [data, compact]);
 
   // visibility toggles
   const [showHeaviest, setShowHeaviest] = useState(true); // blue
@@ -178,20 +197,26 @@ export default function Charts() {
         ) : data.length === 0 ? (
           <p>No data for this selection.</p>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 8, right: 16, left: 4, bottom: 8 }}>
+          <ResponsiveContainer>
+            <LineChart data={data} margin={{ top: 8, right: 0, left: 4, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="dateLabel" interval="preserveStartEnd" />
+              <XAxis
+                dataKey="dateLabel"
+                ticks={xTicks}
+                tick={{ fontSize: compact ? 11 : 12 }}
+              />
               <YAxis
                 yAxisId="left"
-                label={{ value: 'Weight / 1RM (kg)', angle: -90, position: 'insideLeft' }}
+                label={{ value: 'Weight / 1RM (kg)', angle: -90, position: 'outsideLeft' }}
                 allowDecimals={false}
+                hide={true}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                label={{ value: 'Volume (kg·reps)', angle: 90, position: 'insideRight' }}
+                label={{ value: 'Volume (kg·reps)', angle: 90, position: 'outsideRight' }}
                 allowDecimals={false}
+                hide={true}
               />
               <Tooltip formatter={(v:any, name) => [Math.round(v).toString(), name]} />
               <Legend />

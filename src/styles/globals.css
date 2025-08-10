@@ -92,6 +92,10 @@ label { font-size: 12px; opacity: .8; margin-bottom: 6px; display:block; }
   }
 }
 
+@media (max-width: 600px) {
+  .chart-card { height: 420px; }
+}
+
 /* Super small screens */
 @media (max-width: 359px) {
   .controls__series {
