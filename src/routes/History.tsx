@@ -37,6 +37,7 @@ export default function History() {
   const [prs, setPrs] = useState<PRRow[]>([]);
   const [loadingPRs, setLoadingPRs] = useState(true);
   const [prMetric, setPrMetric] = useState<'weight' | '1rm'>('weight');
+  const [prOpen, setPrOpen] = useState(false); // collapsed by default
 
   // Inline edit (one row at a time)
   const [editingSet, setEditingSet] = useState<{ workoutId: string; set: any } | null>(null);
@@ -165,71 +166,75 @@ export default function History() {
   return (
     <div className="grid" style={{ gap: 12 }}>
       {/* PRs panel */}
-      <div className="card">
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>🏆 Personal Records</h3>
-          {/* Selector like Charts */}
-          <div className="row" style={{ gap: 8 }}>
-            <button
-              className={prMetric === 'weight' ? 'primary' : 'ghost'}
-              onClick={() => setPrMetric('weight')}
-            >
-              Heaviest
-            </button>
-            <button
-              className={prMetric === '1rm' ? 'primary' : 'ghost'}
-              onClick={() => setPrMetric('1rm')}
-            >
-              Best 1RM
-            </button>
-          </div>
-        </div>
+      <div className="pr-card">
+        <button
+          className="pr-card__header"
+          onClick={() => setPrOpen(o => !o)}
+          aria-expanded={prOpen}
+          aria-controls="pr-accordion-body"
+        >
+          <h3 className="pr-card__title">🏆 Personal Records</h3>
+          <span style={{ transform: prOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
+        </button>
 
-        {loadingPRs ? (
-          <p>Loading PRs…</p>
-        ) : prs.length ? (
-          <div
-            className="grid"
-            style={{ gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
-          >
-            {prs
-              // sort by selected metric desc, undefined at the end
-              .slice()
-              .sort((a, b) => {
-                const av =
-                  prMetric === 'weight' ? a.weightPR?.value ?? -Infinity : a.oneRMPR?.value ?? -Infinity;
-                const bv =
-                  prMetric === 'weight' ? b.weightPR?.value ?? -Infinity : b.oneRMPR?.value ?? -Infinity;
-                return bv - av;
-              })
-              .map((p) => {
-                const chosen =
-                  prMetric === 'weight'
-                    ? p.weightPR && { label: 'Heaviest', value: p.weightPR.value, dateISO: p.weightPR.dateISO }
-                    : p.oneRMPR && { label: 'Best 1RM', value: p.oneRMPR.value, dateISO: p.oneRMPR.dateISO };
+        {prOpen && (
+          <div id="pr-accordion-body" className="pr-card__body">
+            {/* Metric selector (Heaviest / Best 1RM) */}
+            <div className="pr-toggle" role="tablist" aria-label="PR Metric">
+              <button
+                type="button"
+                className={`btn ${prMetric === 'weight' ? 'is-active' : ''}`}
+                onClick={() => setPrMetric('weight')}
+              >
+                Heaviest
+              </button>
+              <button
+                type="button"
+                className={`btn ${prMetric === '1rm' ? 'is-active' : ''}`}
+                onClick={() => setPrMetric('1rm')}
+              >
+                Best 1RM
+              </button>
+            </div>
 
-                return (
-                  <div key={p.exerciseId} style={{ padding: 10, border: '1px solid #232733', borderRadius: 8 }}>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>{p.exerciseName}</div>
+            {loadingPRs ? (
+              <p style={{ marginTop: 10 }}>Loading PRs…</p>
+            ) : prs.length ? (
+              <div className="pr-grid" style={{ marginTop: 10 }}>
+                {prs
+                  .slice()
+                  .sort((a: any, b: any) => {
+                    const av = prMetric === 'weight' ? a.weightPR?.value ?? -Infinity : a.oneRMPR?.value ?? -Infinity;
+                    const bv = prMetric === 'weight' ? b.weightPR?.value ?? -Infinity : b.oneRMPR?.value ?? -Infinity;
+                    return bv - av;
+                  })
+                  .map((p: any) => {
+                    const chosen =
+                      prMetric === 'weight'
+                        ? p.weightPR && { value: p.weightPR.value, dateISO: p.weightPR.dateISO }
+                        : p.oneRMPR && { value: p.oneRMPR.value, dateISO: p.oneRMPR.dateISO };
 
-                    {chosen ? (
-                      <div style={{ marginTop: 6 }}>
-                        <div style={{ fontWeight: 700, fontSize: 18 }}>
-                          {Math.round(chosen.value)} kg
-                        </div>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>
-                          {new Date(chosen.dateISO).toLocaleDateString('en-GB')}
-                        </div>
+                    return (
+                      <div key={p.exerciseId} className="pr-stat">
+                        <div className="pr-stat__name">{p.exerciseName}</div>
+                        {chosen ? (
+                          <>
+                            <div className="pr-stat__value">{Math.round(chosen.value)} kg</div>
+                            <div className="pr-stat__date">
+                              {new Date(chosen.dateISO).toLocaleDateString('en-GB')}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="pr-stat__date">No PR yet</div>
+                        )}
                       </div>
-                    ) : (
-                      <div style={{ marginTop: 6, opacity: 0.7, fontSize: 12 }}>No PR yet</div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+              </div>
+            ) : (
+              <p style={{ marginTop: 10 }}>No PRs yet.</p>
+            )}
           </div>
-        ) : (
-          <p>No PRs yet.</p>
         )}
       </div>
 

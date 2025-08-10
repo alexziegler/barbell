@@ -103,3 +103,86 @@ label { font-size: 12px; opacity: .8; margin-bottom: 6px; display:block; }
   }
   .btn-toggle { padding: 6px 10px; }
 }
+
+
+
+
+
+/* ——— PR panel ——— */
+.pr-card {
+  border: 1px solid #232733;
+  border-radius: 12px;
+  background: #14161b;
+}
+
+.pr-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.pr-card__title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  font-size: 16px;
+}
+
+.pr-card__body {
+  padding: 12px;
+  border-top: 1px solid #232733;
+}
+
+/* PR selector buttons */
+.pr-toggle {
+  display: inline-flex;
+  gap: 6px;
+}
+.pr-toggle .btn {
+  border: 1px solid #2a2f3b;
+  background: #0f1116;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.pr-toggle .btn.is-active {
+  background: #5b7cfa;
+  border-color: #5b7cfa;
+  color: #0b0c0f;
+}
+
+/* PR cards grid: 2 per row on small screens */
+.pr-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Each PR stat card */
+.pr-stat {
+  border: 1px solid #232733;
+  border-radius: 10px;
+  padding: 10px;
+}
+.pr-stat__name {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.pr-stat__value {
+  font-weight: 700;
+  font-size: 18px;
+}
+.pr-stat__date {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Wider screens: auto-fill nicely */
+@media (min-width: 700px) {
+  .pr-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
