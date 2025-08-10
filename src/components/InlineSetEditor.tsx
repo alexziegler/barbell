@@ -7,12 +7,14 @@ export default function InlineSetEditor({
   onSave,
   onCancel,
   onDelete,
+  showTime = true,
 }: {
   set: any;
   exercises: Exercise[];
   onSave: (patch: { exercise_id: string; weight: number; reps: number; rpe: number|null; failed: boolean; notes: string|null }) => void;
   onCancel: () => void;
   onDelete?: () => void;
+  showTime?: boolean;
 }) {
   const [exerciseId, setExerciseId] = useState(set.exercise_id);
   const [weight, setWeight] = useState<number>(set.weight);
@@ -27,7 +29,9 @@ export default function InlineSetEditor({
 
   return (
     <tr>
-      <td>{new Date(set.created_at).toLocaleTimeString()}</td>
+      {showTime && (                    // ← NEW
+        <td>{new Date(set.created_at).toLocaleTimeString()}</td>
+      )}
       <td>
         <select value={exerciseId} onChange={e => setExerciseId(e.target.value)}>
           {exercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}

@@ -244,3 +244,28 @@ label { font-size: 12px; opacity: .8; margin-bottom: 6px; display:block; }
   outline: 2px solid #5b7cfa;
   outline-offset: 2px;
 }
+
+
+
+
+
+/* ——— Workout exercise badges ——— */
+.workout-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.workout-header .tag {
+  background-color: var(--color-muted, #2a2f3b);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.workout-header .mood {
+  font-style: italic;
+  opacity: 0.8;
+}

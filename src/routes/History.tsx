@@ -61,35 +61,30 @@ export default function History() {
 
   // 2) Build workout -> exercises map whenever workouts change
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      const ids = workouts.map((w) => w.id);
-      if (!ids.length) {
-        if (alive) setWorkoutExercises({});
-        return;
-      }
-      const { data, error } = await supabase
-        .from('sets')
-        .select('workout_id, exercise:exercises(name)')
-        .in('workout_id', ids);
+  let alive = true;
+  (async () => {
+    const ids = workouts.map((w) => w.id);
+    if (!ids.length) { if (alive) setWorkoutExercises({}); return; }
 
-      if (!alive) return;
-      if (error || !data) {
-        setWorkoutExercises({});
-        return;
-      }
+    const { data, error } = await supabase
+      .from('sets')
+      .select('workout_id, exercise:exercises(name, short_name)')
+      .in('workout_id', ids);
 
-      const map: Record<string, Set<string>> = {};
-      for (const row of data as any[]) {
-        if (!map[row.workout_id]) map[row.workout_id] = new Set();
-        map[row.workout_id].add(row.exercise?.name ?? '—');
-      }
-      setWorkoutExercises(map);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [workouts]);
+    if (!alive) return;
+    if (error || !data) { setWorkoutExercises({}); return; }
+
+    const map: Record<string, Set<string>> = {};
+    for (const row of data as any[]) {
+      const wid = row.workout_id as string;
+      const label = (row.exercise?.short_name ?? row.exercise?.name ?? '—') as string;
+      if (!map[wid]) map[wid] = new Set();
+      map[wid].add(label);
+    }
+    setWorkoutExercises(map);
+  })();
+  return () => { alive = false; };
+}, [workouts]);
 
   // 3) Load PRs from precomputed table (fast)
   // load PRs fast
@@ -311,10 +306,26 @@ export default function History() {
         ) : (
           <div key={item.id} className="card">
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
+              <div className="workout-header">
                 <strong>{formatDate(item.w!.date)}</strong>
-                {item.w!.mood && <span style={{ opacity: 0.7 }}> • mood: {item.w!.mood}</span>}
-                {item.w!.notes && <span style={{ opacity: 0.7 }}> • {item.w!.notes}</span>}
+
+                {/* exercise badges inline */}
+                {workoutExercises[item.id!] && workoutExercises[item.id!].size > 0 && (
+                  <>
+                    {' • '}
+                    {Array.from(workoutExercises[item.id!] ?? []).map(shortName => (
+                      <span key={shortName} className="tag">{shortName}</span>
+                    ))}
+                  </>
+                )}
+
+                {/* mood inline */}
+                {item.w!.mood && (
+                  <>
+                    {' • '}
+                    <span className="mood">{item.w!.mood}</span>
+                  </>
+                )}
               </div>
               <button onClick={() => toggle(item.id!)} className="ghost">
                 {expanded[item.id!] ? 'Hide' : 'View'} sets
@@ -400,7 +411,6 @@ function GroupedSets({
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left' }}>Time</th>
                 <th>Weight (kg)</th>
                 <th>Reps</th>
                 <th>RPE</th>
@@ -418,10 +428,10 @@ function GroupedSets({
                     onSave={onSave}
                     onCancel={onCancel}
                     onDelete={onDelete}
+                    showTime={false}
                   />
                 ) : (
                   <tr key={s.id}>
-                    <td>{new Date(s.created_at).toLocaleTimeString()}</td>
                     <td style={{ textAlign: 'center' }}>{s.weight}</td>
                     <td style={{ textAlign: 'center' }}>{s.reps}</td>
                     <td style={{ textAlign: 'center' }}>{s.rpe ?? '—'}</td>
