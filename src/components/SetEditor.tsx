@@ -1,5 +1,11 @@
 import { useState } from 'react';
 
+function parseLocalizedDecimal(s: string): number | null {
+  if (s.trim() === '') return null;
+  const n = Number(s.replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
 export default function SetEditor({
   onAdd,
   units,
@@ -7,25 +13,30 @@ export default function SetEditor({
   onAdd: (s: { weight: number; reps: number; rpe?: number | null; failed?: boolean; notes?: string | null }) => void;
   units: 'kg' | 'lb';
 }) {
-  const [weight, setWeight] = useState<number>(0);
+  // keep weight as a *string* to avoid Safari clearing on comma
+  const [weightInput, setWeightInput] = useState<string>('');
   const [reps, setReps] = useState<number>(5);
 
   // RPE slider (optional)
-  const [rpe, setRpe] = useState<number>(7);      // default position
-  const [rpeNA, setRpeNA] = useState<boolean>(true); // start as "not recorded"
+  const [rpe, setRpe] = useState<number>(7);
+  const [rpeNA, setRpeNA] = useState<boolean>(true);
 
   const [failed, setFailed] = useState(false);
   const [notes, setNotes] = useState<string>('');
 
   const submit = () => {
+    const parsed = parseLocalizedDecimal(weightInput);
+    if (parsed === null) {
+      alert('Please enter a valid weight (e.g., 62,5 or 62.5)');
+      return;
+    }
     onAdd({
-      weight,
+      weight: parsed,
       reps,
       rpe: rpeNA ? null : rpe,
       failed,
       notes: notes || null,
     });
-    // keep your current behavior (don’t reset everything unless you want to)
   };
 
   return (
@@ -34,10 +45,12 @@ export default function SetEditor({
         <div>
           <label>Weight ({units})</label>
           <input
-            type="number"
+            type="text"                 // ← text to allow comma
             inputMode="decimal"
-            value={weight}
-            onChange={(e) => setWeight(parseFloat(e.target.value))}
+            pattern="[0-9]*[.,]?[0-9]*" // hint for mobile keyboards
+            value={weightInput}
+            onChange={(e) => setWeightInput(e.target.value)}
+            placeholder={units === 'kg' ? 'e.g., 62,5' : 'e.g., 137,5'}
           />
         </div>
 
@@ -45,8 +58,9 @@ export default function SetEditor({
           <label>Reps</label>
           <input
             type="number"
+            step={1}
             value={reps}
-            onChange={(e) => setReps(parseInt(e.target.value))}
+            onChange={(e) => setReps(parseInt(e.target.value || '0', 10))}
           />
         </div>
 

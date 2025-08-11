@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { Exercise } from '../types';
 
+function parseLocalizedDecimal(s: string): number | null {
+  if (s.trim() === '') return null;
+  const n = Number(s.replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
 export default function InlineSetEditor({
   set,
   exercises,
@@ -22,6 +28,7 @@ export default function InlineSetEditor({
   const [rpe, setRpe] = useState<number | ''>(set.rpe ?? '');
   const [failed, setFailed] = useState<boolean>(!!set.failed);
   const [notes, setNotes] = useState<string>(set.notes ?? '');
+  const [weightStr, setWeightStr] = useState<string>(String(set.weight).replace('.', ','));
 
   useEffect(() => {
     setExerciseId(set.exercise_id);
@@ -38,7 +45,16 @@ export default function InlineSetEditor({
         </select>
       </td>
       <td style={{ textAlign: 'center' }}>
-        <input type="number" value={weight} onChange={e => setWeight(parseFloat(e.target.value))} style={{ width: 90 }} />
+        <td style={{ textAlign: 'center' }}>
+          <input
+            type="text"
+            inputMode="decimal"
+            pattern="[0-9]*[.,]?[0-9]*"
+            value={weightStr}
+            onChange={(e) => setWeightStr(e.target.value)}
+            style={{ width: 90 }}
+          />
+        </td>
       </td>
       <td style={{ textAlign: 'center' }}>
         <input type="number" value={reps} onChange={e => setReps(parseInt(e.target.value))} style={{ width: 70 }} />
@@ -53,7 +69,16 @@ export default function InlineSetEditor({
         <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes" />
       </td>
       <td className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
-        <button className="primary" onClick={() => onSave({ exercise_id: exerciseId, weight, reps, rpe: rpe === '' ? null : rpe, failed, notes: notes || null })}>Save</button>
+        <button
+          className="primary"
+          onClick={() => {
+            const w = parseLocalizedDecimal(weightStr);
+            if (w === null) { alert('Enter a valid weight'); return; }
+            onSave({ exercise_id: exerciseId, weight: w, reps, rpe: rpe === '' ? null : rpe, failed, notes: notes || null });
+          }}
+        >
+          Save
+        </button>
         <button className="ghost" onClick={onCancel}>Cancel</button>
         {onDelete && <button onClick={onDelete}>Delete</button>}
       </td>
