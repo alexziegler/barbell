@@ -23,12 +23,27 @@ export async function upsertWorkout(id: string, patch: Partial<Pick<Workout,'moo
   if (error) throw error; return data as Workout;
 }
 
-export async function addSet(workout_id: string, set: { exercise_id: string; weight: number; reps: number; rpe?: number|null; failed?: boolean; notes?: string|null }): Promise<SetEntry> {
+export async function addSet(
+  workout_id: string,
+  set: { exercise_id: string; weight: number; reps: number; rpe?: number|null; failed?: boolean; performed_at?: string | null }
+): Promise<SetEntry> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
-  const payload = { user_id: user.id, workout_id, exercise_id: set.exercise_id, weight: set.weight, reps: set.reps, rpe: set.rpe ?? null, failed: !!set.failed, notes: set.notes ?? null };
+
+  const payload: any = {
+    user_id: user.id,
+    workout_id,
+    exercise_id: set.exercise_id,
+    weight: set.weight,
+    reps: set.reps,
+    rpe: set.rpe ?? null,
+    failed: !!set.failed,
+  };
+  if (set.performed_at) payload.performed_at = set.performed_at;
+
   const { data, error } = await supabase.from('sets').insert(payload).select('*').single();
-  if (error) throw error; return data as SetEntry;
+  if (error) throw error;
+  return data as SetEntry;
 }
 
 export async function updateSet(id: string, patch: Partial<Pick<SetEntry,'exercise_id'|'weight'|'reps'|'rpe'|'failed'|'notes'>>): Promise<SetEntry> {
@@ -104,4 +119,24 @@ export async function getPRs(): Promise<Array<{
       oneRMPR: v.onerm ?? null,
     }))
     .sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
+}
+
+
+export async function createExercise(input: { name: string; short_name: string | null }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const payload = {
+    user_id: user.id,
+    name: input.name.trim(),
+    short_name: input.short_name?.trim() || null,
+    category: null,
+    is_bodyweight: false,
+  };
+  const { data, error } = await supabase
+    .from('exercises')
+    .insert(payload)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as Exercise;
 }

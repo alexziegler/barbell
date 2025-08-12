@@ -1,49 +1,46 @@
-// src/components/ExercisePicker.tsx
 import { useEffect, useState } from 'react';
 import type { Exercise } from '../types';
 import { getExercises } from '../lib/api';
+import AddExerciseModal from './AddExerciseModal';
 
 export default function ExercisePicker({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: string | null;
-  onChange: (id: string) => void;
-  disabled?: boolean;
-}) {
+  value, onChange,
+}: { value: string | null; onChange: (id: string) => void }) {
   const [exs, setExs] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    let alive = true;
-    getExercises()
-      .then((list) => alive && setExs(list))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
+    getExercises().then(setExs).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div>Loading exercises…</div>;
-
   return (
-    <div>
+    <div className="grid" style={{ gap: 6 }}>
       <label>Exercise</label>
-      <select
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-      >
-        <option value="" disabled>
-          Select…
-        </option>
-        {exs.map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.name}
-          </option>
-        ))}
-      </select>
+      {loading ? (
+        <div>Loading…</div>
+      ) : (
+        <div className="row" style={{ gap: 8 }}>
+          <select value={value ?? ''} onChange={e => onChange(e.target.value)}>
+            <option value="" disabled>Select…</option>
+            {exs.map(e => (
+              <option key={e.id} value={e.id}>
+                {(e as any).short_name ?? e.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={() => setOpen(true)}>+ Add</button>
+        </div>
+      )}
+
+      <AddExerciseModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onCreated={(ex) => {
+          setExs(prev => [...prev, ex as any].sort((a,b)=>a.name.localeCompare(b.name)));
+          onChange(ex.id);
+        }}
+      />
     </div>
   );
 }

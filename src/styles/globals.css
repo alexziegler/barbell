@@ -269,3 +269,19 @@ label { font-size: 12px; opacity: .8; margin-bottom: 6px; display:block; }
   font-style: italic;
   opacity: 0.8;
 }
+
+
+/* Modal */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.5);
+  display: grid; place-items: center;
+  z-index: 1000;
+}
+.modal {
+  width: min(92vw, 420px);
+  background: #14161b;
+  border: 1px solid #232733;
+  border-radius: 12px;
+  padding: 16px;
+}
