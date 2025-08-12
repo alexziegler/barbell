@@ -14,6 +14,7 @@ export default function InlineSetEditor({
   onCancel,
   onDelete,
   showTime = true,
+  showNotes = false,
 }: {
   set: any;
   exercises: Exercise[];
@@ -21,6 +22,7 @@ export default function InlineSetEditor({
   onCancel: () => void;
   onDelete?: () => void;
   showTime?: boolean;
+  showNotes?: boolean;
 }) {
   const [exerciseId, setExerciseId] = useState(set.exercise_id);
   const [weight, setWeight] = useState<number>(set.weight);
@@ -36,25 +38,15 @@ export default function InlineSetEditor({
 
   return (
     <tr>
-      {showTime && (                    // ← NEW
-        <td>{new Date(set.created_at).toLocaleTimeString()}</td>
-      )}
+      {showTime && <td>{new Date(set.created_at).toLocaleTimeString()}</td>}
       <td>
         <select value={exerciseId} onChange={e => setExerciseId(e.target.value)}>
           {exercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
         </select>
       </td>
       <td style={{ textAlign: 'center' }}>
-        <td style={{ textAlign: 'center' }}>
-          <input
-            type="text"
-            inputMode="decimal"
-            pattern="[0-9]*[.,]?[0-9]*"
-            value={weightStr}
-            onChange={(e) => setWeightStr(e.target.value)}
-            style={{ width: 90 }}
-          />
-        </td>
+        <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*"
+               value={weightStr} onChange={e => setWeightStr(e.target.value)} style={{ width: 90 }} />
       </td>
       <td style={{ textAlign: 'center' }}>
         <input type="number" value={reps} onChange={e => setReps(parseInt(e.target.value))} style={{ width: 70 }} />
@@ -65,20 +57,22 @@ export default function InlineSetEditor({
       <td style={{ textAlign: 'center' }}>
         <input type="checkbox" checked={failed} onChange={e => setFailed(e.target.checked)} />
       </td>
-      <td>
-        <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes" />
-      </td>
+
+      {showNotes && (
+        <td>
+          <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes" />
+        </td>
+      )}
+
       <td className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
-        <button
-          className="primary"
-          onClick={() => {
-            const w = parseLocalizedDecimal(weightStr);
-            if (w === null) { alert('Enter a valid weight'); return; }
-            onSave({ exercise_id: exerciseId, weight: w, reps, rpe: rpe === '' ? null : rpe, failed, notes: notes || null });
-          }}
-        >
-          Save
-        </button>
+        <button className="primary" onClick={() => onSave({
+          exercise_id: exerciseId,
+          weight: weight, // your parsed value
+          reps,
+          rpe: rpe === '' ? null : rpe,
+          failed,
+          notes: showNotes ? (notes || null) : null,
+        })}>Save</button>
         <button className="ghost" onClick={onCancel}>Cancel</button>
         {onDelete && <button onClick={onDelete}>Delete</button>}
       </td>

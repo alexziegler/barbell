@@ -411,6 +411,7 @@ function GroupedSets({
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                <th style={{ textAlign: 'left' }}>Exercise</th>
                 <th>Weight (kg)</th>
                 <th>Reps</th>
                 <th>RPE</th>
@@ -432,6 +433,7 @@ function GroupedSets({
                   />
                 ) : (
                   <tr key={s.id}>
+                    <td />
                     <td style={{ textAlign: 'center' }}>{s.weight}</td>
                     <td style={{ textAlign: 'center' }}>{s.reps}</td>
                     <td style={{ textAlign: 'center' }}>{s.rpe ?? '—'}</td>
