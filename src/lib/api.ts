@@ -1,73 +1,39 @@
 import { supabase } from './supabaseClient';
 import type { Exercise, SetEntry } from '../types';
 
-export async function getExercises() {
+function localDayStartISO(dayISO: string) {
+  // dayISO = 'YYYY-MM-DD' in local tz
+  const d = new Date(`${dayISO}T00:00:00`);
+  return d.toISOString(); // converts local midnight → UTC ISO for Supabase
+}
+
+function localNextDayStartISO(dayISO: string) {
+  const d = new Date(`${dayISO}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString();
+}
+
+export async function getExercises(): Promise<Exercise[]> {
   const { data, error } = await supabase
     .from('exercises')
-    .select('*')
+    .select('id, user_id, name, short_name, category, is_bodyweight, created_at')
     .order('name', { ascending: true });
   if (error) throw error;
-  return data || [];
+  return (data ?? []) as Exercise[];
 }
 
-export async function createWorkout(opts: { date?: string; mood?: Mood|null; feelings?: Feeling[]; notes?: string|null }): Promise<Workout> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  const payload = { user_id: user.id, date: opts.date ?? new Date().toISOString(), mood: opts.mood ?? null, feelings: opts.feelings ?? [], notes: opts.notes ?? null };
-  const { data, error } = await supabase.from('workouts').insert(payload).select('*').single();
-  if (error) throw error; return data as Workout;
-}
-
-export async function upsertWorkout(id: string, patch: Partial<Pick<Workout,'mood'|'feelings'|'notes'|'date'>>): Promise<Workout> {
-  const { data, error } = await supabase.from('workouts').update(patch).eq('id', id).select('*').single();
-  if (error) throw error; return data as Workout;
-}
-
-export async function addSet(
-  workout_id: string,
-  set: { exercise_id: string; weight: number; reps: number; rpe?: number|null; failed?: boolean; performed_at?: string | null }
+export async function updateSet(
+  id: string,
+  patch: Partial<Pick<SetEntry,'exercise_id'|'weight'|'reps'|'rpe'|'failed'>> & { performed_at?: string | null }
 ): Promise<SetEntry> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const payload: any = {
-    user_id: user.id,
-    workout_id,
-    exercise_id: set.exercise_id,
-    weight: set.weight,
-    reps: set.reps,
-    rpe: set.rpe ?? null,
-    failed: !!set.failed,
-  };
-  if (set.performed_at) payload.performed_at = set.performed_at;
-
-  const { data, error } = await supabase.from('sets').insert(payload).select('*').single();
+  const { data, error } = await supabase.from('sets').update(patch).eq('id', id).select('*').single();
   if (error) throw error;
   return data as SetEntry;
-}
-
-export async function updateSet(id: string, patch: Partial<Pick<SetEntry,'exercise_id'|'weight'|'reps'|'rpe'|'failed'|'notes'>>): Promise<SetEntry> {
-  const { data, error } = await supabase.from('sets').update(patch).eq('id', id).select('*').single();
-  if (error) throw error; return data as SetEntry;
 }
 
 export async function deleteSet(id: string): Promise<void> {
   const { error } = await supabase.from('sets').delete().eq('id', id);
   if (error) throw error;
-}
-
-export async function listWorkouts(limit = 30): Promise<Workout[]> {
-  const { data, error } = await supabase.from('workouts').select('*').order('date', { ascending: false }).limit(limit);
-  if (error) throw error; return data as Workout[];
-}
-
-export async function listSetsByWorkout(workout_id: string): Promise<(SetEntry & { exercise: Exercise })[]> {
-  const { data, error } = await supabase
-    .from('sets')
-    .select('*, exercise:exercises(*)')
-    .eq('workout_id', workout_id)
-    .order('created_at', { ascending: true });
-  if (error) throw error; return data as any;
 }
 
 export async function signOut() { await supabase.auth.signOut(); }
@@ -175,14 +141,13 @@ export async function addSetBare(set: {
 
 // List sets for a specific local day [start, end)
 export async function listSetsByDay(dayISO: string) {
-  // dayISO like '2025-08-11' (local date string)
-  const start = new Date(dayISO + 'T00:00:00');
-  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const startISO = localDayStartISO(dayISO);
+  const endISO = localNextDayStartISO(dayISO);
   const { data, error } = await supabase
     .from('sets')
     .select('*, exercise:exercises(*)')
-    .gte('performed_at', start.toISOString())
-    .lt('performed_at', end.toISOString())
+    .gte('performed_at', startISO)
+    .lt('performed_at', endISO)
     .order('performed_at', { ascending: true });
   if (error) throw error;
   return data as (SetEntry & { exercise: Exercise })[];
@@ -192,14 +157,14 @@ export async function listSetsByDay(dayISO: string) {
 export async function listRecentDays(limit = 30) {
   const { data, error } = await supabase
     .from('sets')
-    .select('performed_at')
+    .select('performed_at, created_at')  // ← include created_at as fallback
     .order('performed_at', { ascending: false })
     .limit(1000);
   if (error) throw error;
-  // unique day strings in local tz
+
   const seen = new Set<string>();
   const days: string[] = [];
-  for (const r of data ?? []) {
+  for (const r of (data ?? []) as { performed_at: string | null; created_at: string }[]) {
     const d = new Date(r.performed_at ?? r.created_at);
     const key = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
     if (!seen.has(key)) { seen.add(key); days.push(key); }
@@ -214,15 +179,14 @@ export async function listExerciseBadgesForDays(days: string[]) {
   if (!days.length) return {} as Record<string, string[]>;
   // Compute a single time window to fetch once
   const sorted = [...days].sort();
-  const start = new Date(`${sorted[0]}T00:00:00`);
-  const end = new Date(`${sorted[sorted.length - 1]}T00:00:00`);
-  end.setDate(end.getDate() + 1);
+  const startISO = localDayStartISO(sorted[0]);
+  const endISO = localNextDayStartISO(sorted[sorted.length - 1]);
 
   const { data, error } = await supabase
-    .from("sets")
-    .select("performed_at, exercise:exercises(name, short_name)")
-    .gte("performed_at", start.toISOString())
-    .lt("performed_at", end.toISOString());
+    .from('sets')
+    .select('performed_at, exercise:exercises(name, short_name)')
+    .gte('performed_at', startISO)
+    .lt('performed_at', endISO);
   if (error) throw error;
 
   const map: Record<string, Set<string>> = {};
