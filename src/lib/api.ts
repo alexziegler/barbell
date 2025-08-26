@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import type { Exercise, Workout, SetEntry, Mood, Feeling } from '../types';
+import type { Exercise, SetEntry } from '../types';
 
 export async function getExercises() {
   const { data, error } = await supabase
@@ -139,4 +139,102 @@ export async function createExercise(input: { name: string; short_name: string |
     .single();
   if (error) throw error;
   return data as Exercise;
+}
+
+// Create set without any workout_id (uses performed_at)
+export async function addSetBare(set: {
+  exercise_id: string;
+  weight: number;
+  reps: number;
+  rpe?: number | null;
+  failed?: boolean;
+  performed_at?: string | null;   // ISO string
+}) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const payload: any = {
+    user_id: user.id,
+    exercise_id: set.exercise_id,
+    weight: set.weight,
+    reps: set.reps,
+    rpe: set.rpe ?? null,
+    failed: !!set.failed,
+    performed_at: set.performed_at ?? null,
+    workout_id: null,
+  };
+
+  const { data, error } = await supabase
+    .from('sets')
+    .insert(payload)
+    .select('*, exercise:exercises(*)')
+    .single();
+  if (error) throw error;
+  return data as SetEntry & { exercise: Exercise };
+}
+
+// List sets for a specific local day [start, end)
+export async function listSetsByDay(dayISO: string) {
+  // dayISO like '2025-08-11' (local date string)
+  const start = new Date(dayISO + 'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const { data, error } = await supabase
+    .from('sets')
+    .select('*, exercise:exercises(*)')
+    .gte('performed_at', start.toISOString())
+    .lt('performed_at', end.toISOString())
+    .order('performed_at', { ascending: true });
+  if (error) throw error;
+  return data as (SetEntry & { exercise: Exercise })[];
+}
+
+// Recent days that have sets (for History)
+export async function listRecentDays(limit = 30) {
+  const { data, error } = await supabase
+    .from('sets')
+    .select('performed_at')
+    .order('performed_at', { ascending: false })
+    .limit(1000);
+  if (error) throw error;
+  // unique day strings in local tz
+  const seen = new Set<string>();
+  const days: string[] = [];
+  for (const r of data ?? []) {
+    const d = new Date(r.performed_at ?? r.created_at);
+    const key = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+    if (!seen.has(key)) { seen.add(key); days.push(key); }
+    if (days.length >= limit) break;
+  }
+  return days;
+}
+
+
+// Return a mapping of day ("YYYY-MM-DD") -> array of distinct exercise labels (short_name || name)
+export async function listExerciseBadgesForDays(days: string[]) {
+  if (!days.length) return {} as Record<string, string[]>;
+  // Compute a single time window to fetch once
+  const sorted = [...days].sort();
+  const start = new Date(`${sorted[0]}T00:00:00`);
+  const end = new Date(`${sorted[sorted.length - 1]}T00:00:00`);
+  end.setDate(end.getDate() + 1);
+
+  const { data, error } = await supabase
+    .from("sets")
+    .select("performed_at, exercise:exercises(name, short_name)")
+    .gte("performed_at", start.toISOString())
+    .lt("performed_at", end.toISOString());
+  if (error) throw error;
+
+  const map: Record<string, Set<string>> = {};
+  for (const row of (data ?? []) as any[]) {
+    const d = new Date(row.performed_at);
+    const key = d.toLocaleDateString("en-CA"); // YYYY-MM-DD in local tz
+    const label = row.exercise?.short_name ?? row.exercise?.name ?? "—";
+    if (!map[key]) map[key] = new Set<string>();
+    map[key].add(label);
+  }
+
+  const out: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(map)) out[k] = Array.from(v).sort();
+  return out;
 }
