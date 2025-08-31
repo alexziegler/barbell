@@ -20,7 +20,7 @@ export default function ExercisePicker({
       {loading ? (
         <div>Loading…</div>
       ) : (
-        <div className="form-row">
+        <div className="exercise-picker-row">
           <select value={value ?? ''} onChange={e => onChange(e.target.value)}>
             <option value="" disabled>Select…</option>
             {exs.map(e => (
@@ -29,7 +29,7 @@ export default function ExercisePicker({
               </option>
             ))}
           </select>
-          <button type="button" onClick={() => setOpen(true)}>+ Add</button>
+          <button type="button" className="add-exercise-btn" onClick={() => setOpen(true)}>+</button>
         </div>
       )}
 

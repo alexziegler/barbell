@@ -34,51 +34,51 @@ export default function SetEditor({
   };
 
   return (
-    <div className="card">
-      <div className="set-editor">
-        <div className="form-row">
-          <div className="form-field">
-            <label>Weight ({units})</label>
+    <div className="set-editor">
+      <div className="form-row">
+        <div className="form-field weight-field">
+          <label>Weight ({units})</label>
+          <input
+            type="text"
+            inputMode="decimal"
+            pattern="[0-9]*[.,]?[0-9]*"
+            value={weightInput}
+            onChange={(e) => setWeightInput(e.target.value)}
+            placeholder={units === 'kg' ? 'e.g., 62,5' : 'e.g., 137,5'}
+          />
+        </div>
+
+        <div className="form-field reps-field">
+          <label>Reps</label>
+          <input type="number" step={1} value={reps} onChange={e => setReps(parseInt(e.target.value || '0', 10))} />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-field rpe-field">
+          <label>RPE (1–10)</label>
+          <div className="rpe-container">
             <input
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*[.,]?[0-9]*"
-              value={weightInput}
-              onChange={(e) => setWeightInput(e.target.value)}
-              placeholder={units === 'kg' ? 'e.g., 62,5' : 'e.g., 137,5'}
+              className="rpe-slider"
+              type="range"
+              min={1}
+              max={10}
+              step={1}
+              value={rpe}
+              onChange={(e) => setRpe(parseInt(e.target.value))}
             />
-          </div>
-
-          <div className="form-field">
-            <label>Reps</label>
-            <input type="number" step={1} value={reps} onChange={e => setReps(parseInt(e.target.value || '0', 10))} />
-          </div>
-
-          <div className="form-field">
-            <label>RPE (1–10)</label>
-            <div className="rpe-container">
-              <input
-                className="rpe-slider"
-                type="range"
-                min={1}
-                max={10}
-                step={1}
-                value={rpe}
-                onChange={(e) => setRpe(parseInt(e.target.value))}
-              />
-              <span className="rpe-value">{rpe}</span>
-            </div>
-          </div>
-
-          <div className="form-field">
-            <label>Failed</label>
-            <input type="checkbox" checked={failed} onChange={e => setFailed(e.target.checked)} />
+            <span className="rpe-value">{rpe}</span>
           </div>
         </div>
 
-        <div className="form-actions">
-          <button className="primary" onClick={submit}>Add set</button>
+        <div className="form-field failed-field">
+          <label>Failed</label>
+          <input type="checkbox" checked={failed} onChange={e => setFailed(e.target.checked)} />
         </div>
+      </div>
+
+      <div className="form-actions">
+        <button className="primary" onClick={submit}>Add set</button>
       </div>
     </div>
   );

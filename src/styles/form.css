@@ -1,12 +1,12 @@
 /* Form Layouts */
 .form-grid {
   display: grid;
-  gap: var(--spacing-base);
+  gap: var(--spacing-xl);
 }
 
 .form-row {
   display: flex;
-  gap: var(--spacing-base);
+  gap: var(--spacing-xl);
   flex-wrap: wrap;
 }
 
@@ -55,18 +55,84 @@
   padding: var(--spacing-sm) var(--spacing-base);
 }
 
+/* Set Editor Button */
+.set-editor .form-actions {
+  justify-content: stretch;
+  margin: 0;
+}
+
+.set-editor .form-actions .primary {
+  width: 100%;
+  padding: var(--spacing-base) var(--spacing-lg);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  height: auto;
+  min-height: 44px;
+}
+
 /* Exercise Picker */
 .exercise-picker {
   display: grid;
   gap: var(--spacing-sm);
 }
 
-.exercise-picker .form-row {
+.exercise-picker * {
+  box-sizing: border-box;
+}
+
+.exercise-picker label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  margin-bottom: var(--spacing-xs);
+}
+
+.exercise-picker-row {
+  display: flex;
   gap: var(--spacing-md);
+  align-items: center;
+  flex-wrap: nowrap;
+  width: 100%;
 }
 
 .exercise-picker select {
   min-width: 120px;
+  flex: 1;
+}
+
+.add-exercise-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border-secondary);
+  color: var(--color-text);
+}
+
+.add-exercise-btn:hover {
+  transform: scale(1.02);
+  background: var(--color-surface-tertiary);
+  border-color: var(--color-border-primary);
+  color: var(--color-primary);
+}
+
+.add-exercise-btn:active {
+  transform: scale(0.98);
+}
+
+/* Log Set Section */
+.log-set-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.log-set-section .page-title {
+  margin-bottom: var(--spacing-lg);
 }
 
 /* Set Editor */
@@ -76,18 +142,51 @@
 }
 
 .set-editor .form-row {
+  display: flex;
   gap: var(--spacing-base);
   align-items: end;
+  flex-wrap: wrap;
 }
 
 .set-editor .form-field {
   min-width: 0;
 }
 
+.set-editor .weight-field,
+.set-editor .reps-field {
+  flex: 0 0 calc(50% - var(--spacing-base) / 2);
+  min-width: 0;
+}
+
+.set-editor .weight-field input,
+.set-editor .reps-field input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.set-editor .failed-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-self: flex-start;
+}
+
+.set-editor .failed-field input[type="checkbox"] {
+  margin-top: 8px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.set-editor .rpe-field {
+  flex: 1;
+  min-width: 250px;
+}
+
 .set-editor .rpe-container {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
 }
 
 .set-editor .rpe-value {
@@ -153,19 +252,6 @@
 
 /* Mobile Form Improvements */
 @media (max-width: 768px) {
-  .form-row {
-    flex-direction: column;
-    gap: var(--spacing-base);
-  }
-  
-  .set-editor .form-row {
-    gap: var(--spacing-base);
-  }
-  
-  .exercise-picker select {
-    min-width: 100%;
-  }
-  
   .rpe-slider {
     min-height: 44px;
   }

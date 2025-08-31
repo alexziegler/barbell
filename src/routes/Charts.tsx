@@ -23,6 +23,7 @@ type Point = {
   heaviest: number | null;  // heaviest successful single-set weight
   oneRM: number | null;     // estimated 1RM (Epley)
   volume: number;           // sum(weight * reps) successful sets
+  trend?: number;           // trend line value based on previous 4 weeks
 };
 
 function formatDDMMYYYY(iso: string | number | Date) {
@@ -48,6 +49,78 @@ function useCompact() {
   return compact;
 }
 
+function calculateTrendLine(data: Point[]): Point[] {
+  if (data.length < 2) return data;
+  
+  return data.map((point, index) => {
+    const currentDate = new Date(point.dateISO);
+    
+    // Calculate the date 4 weeks ago from the current point
+    const fourWeeksAgo = new Date(currentDate);
+    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28); // 4 weeks = 28 days
+    
+    // Get all data points from the last 4 weeks (including current point)
+    const recentData = data.filter(p => {
+      const pointDate = new Date(p.dateISO);
+      return pointDate >= fourWeeksAgo && pointDate <= currentDate;
+    });
+    
+    // Need at least 2 points for trend calculation
+    if (recentData.length < 2) return point;
+    
+    // Group data by week for more stable trend calculation
+    const weeklyData = new Map<string, number[]>();
+    
+    recentData.forEach(p => {
+      const pointDate = new Date(p.dateISO);
+      // Get the start of the week (Monday)
+      const dayOfWeek = pointDate.getDay();
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(pointDate);
+      monday.setDate(monday.getDate() - daysToMonday);
+      const weekKey = monday.toISOString().split('T')[0];
+      
+      if (p.heaviest !== null) {
+        const existing = weeklyData.get(weekKey) || [];
+        existing.push(p.heaviest);
+        weeklyData.set(weekKey, existing);
+      }
+    });
+    
+    // Calculate weekly averages and sort by date
+    const weeklyAverages = Array.from(weeklyData.entries())
+      .map(([weekKey, weights]) => ({
+        weekKey,
+        date: new Date(weekKey),
+        averageWeight: weights.reduce((sum, w) => sum + w, 0) / weights.length
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    if (weeklyAverages.length < 2) return point;
+    
+    // Calculate linear regression using weekly averages
+    const n = weeklyAverages.length;
+    const xValues = weeklyAverages.map((_, i) => i);
+    const yValues = weeklyAverages.map(w => w.averageWeight);
+    
+    // Calculate slope and intercept for linear regression
+    const sumX = xValues.reduce((a, b) => a + b, 0);
+    const sumY = yValues.reduce((a, b) => a + b, 0);
+    const sumXY = xValues.reduce((a, b, i) => a + b * yValues[i], 0);
+    const sumXX = xValues.reduce((a, b) => a + b * b, 0);
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+    
+    // Calculate trend value for current point
+    // Use the slope to project forward from the last week's average
+    const lastWeekIndex = n - 1;
+    const trend = slope * lastWeekIndex + intercept;
+    
+    return { ...point, trend: Math.max(0, trend) };
+  });
+}
+
 export default function Charts() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exerciseId, setExerciseId] = useState<string>('');
@@ -67,8 +140,9 @@ export default function Charts() {
 
   // visibility toggles
   const [showHeaviest, setShowHeaviest] = useState(true); // blue
-  const [showOneRM, setShowOneRM] = useState(true);       // red
+  const [showOneRM, setShowOneRM] = useState(false);      // red (disabled by default)
   const [showVolume, setShowVolume] = useState(false);    // green (off by default)
+  const [showTrend, setShowTrend] = useState(true);       // purple (trend line)
 
   useEffect(() => {
     getExercises().then((list) => {
@@ -131,7 +205,9 @@ export default function Charts() {
           })
           .sort((a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime());
 
-        setData(points);
+        // Calculate trend line
+        const pointsWithTrend = calculateTrendLine(points);
+        setData(pointsWithTrend);
       } finally {
         setLoading(false);
       }
@@ -184,6 +260,11 @@ export default function Charts() {
                 onClick={() => setShowVolume(v => !v)}
                 type="button"
               >Volume</button>
+              <button
+                className={`btn-toggle ${showTrend ? 'is-active' : ''}`}
+                onClick={() => setShowTrend(v => !v)}
+                type="button"
+              >Trend</button>
             </div>
           </div>
         </div>
@@ -220,9 +301,51 @@ export default function Charts() {
               />
               <Tooltip formatter={(v:any, name) => [Math.round(v).toString(), name]} />
               <Legend />
-              <Line type="monotone" dataKey="heaviest" name="Heaviest" yAxisId="left" stroke="#3b82f6" strokeWidth={2} dot={false} hide={!showHeaviest} />
-              <Line type="monotone" dataKey="oneRM"   name="Estimated 1RM" yAxisId="left" stroke="#ef4444" strokeWidth={2} dot={false} hide={!showOneRM} />
-              <Line type="monotone" dataKey="volume"  name="Volume" yAxisId="right" stroke="#10b981" strokeWidth={2} dot={false} hide={!showVolume} />
+              <Line 
+                type="monotone" 
+                dataKey="heaviest" 
+                name="Heaviest" 
+                yAxisId="left" 
+                stroke="#3b82f6" 
+                strokeWidth={2} 
+                dot={false} 
+                hide={!showHeaviest}
+                isAnimationActive={false}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="oneRM"   
+                name="Estimated 1RM" 
+                yAxisId="left" 
+                stroke="#ef4444" 
+                strokeWidth={2} 
+                dot={false} 
+                hide={!showOneRM}
+                isAnimationActive={false}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="volume"  
+                name="Volume" 
+                yAxisId="right" 
+                stroke="#10b981" 
+                strokeWidth={2} 
+                dot={false} 
+                hide={!showVolume}
+                isAnimationActive={false}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="trend"  
+                name="Trend (4 weeks)" 
+                yAxisId="left" 
+                stroke="#8b5cf6" 
+                strokeWidth={2} 
+                dot={false} 
+                hide={!showTrend}
+                isAnimationActive={false}
+                strokeDasharray="5 5"
+              />
             </LineChart>
           </ResponsiveContainer>
         )}
