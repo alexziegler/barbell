@@ -1,0 +1,104 @@
+/* Chart Controls */
+.controls {
+  display: grid;
+  gap: var(--spacing-base);
+  grid-template-columns: 1fr;
+  padding: var(--spacing-base);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.controls__row {
+  display: grid;
+  gap: var(--spacing-base);
+  grid-template-columns: 1fr;
+}
+
+.controls__field {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.controls__series {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+/* Toggle Buttons */
+.btn-toggle {
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-surface-secondary);
+  padding: var(--spacing-md) var(--spacing-base);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-base);
+}
+
+.btn-toggle.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-black);
+}
+
+.btn-toggle:hover:not(.is-active) {
+  background: var(--color-surface-tertiary);
+}
+
+/* Chart Card */
+.chart-card {
+  height: var(--chart-height-desktop);
+  padding: var(--spacing-base);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.chart-title {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Chart Legend and Ticks */
+.recharts-default-legend {
+  font-size: var(--font-size-sm);
+}
+
+/* Responsive Breakpoints */
+@media (min-width: 600px) {
+  .controls {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-lg);
+  }
+  
+  .controls__row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+  }
+}
+
+@media (min-width: 900px) {
+  .controls__row {
+    grid-template-columns: 1.2fr 1fr 1fr;
+  }
+  
+  .chart-card {
+    height: var(--chart-height-tablet);
+  }
+}
+
+@media (max-width: 600px) {
+  .chart-card { 
+    height: var(--chart-height-mobile); 
+  }
+  
+  .controls__series {
+    gap: var(--spacing-sm);
+  }
+  
+  .btn-toggle {
+    padding: var(--spacing-sm) var(--spacing-base);
+    font-size: var(--font-size-sm);
+  }
+}

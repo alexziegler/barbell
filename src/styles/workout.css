@@ -1,0 +1,201 @@
+/* Workout Header and Badges */
+.workout-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.workout-header .tag {
+  background-color: var(--color-border-secondary);
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-medium);
+}
+
+.workout-header .mood {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Personal Records */
+.pr-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+
+.pr-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-base) var(--spacing-base);
+  cursor: pointer;
+}
+
+.pr-card__title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.pr-card__body {
+  padding: var(--spacing-base);
+  border-top: 1px solid var(--color-border);
+}
+
+/* PR Selector Buttons */
+.pr-toggle {
+  display: inline-flex;
+  gap: var(--spacing-sm);
+}
+
+.pr-toggle .btn {
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-surface-secondary);
+  padding: var(--spacing-sm) 10px;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-xs);
+  transition: all var(--transition-base);
+}
+
+.pr-toggle .btn.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-black);
+}
+
+/* PR Cards Grid */
+.pr-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Each PR Stat Card */
+.pr-stat {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 10px;
+}
+
+.pr-stat__name {
+  font-size: var(--font-size-sm);
+  opacity: 0.8;
+}
+
+.pr-stat__value {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+}
+
+.pr-stat__date {
+  font-size: var(--font-size-sm);
+  opacity: 0.7;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-3xl);
+  opacity: 0.6;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-secondary);
+}
+
+.empty-state__icon {
+  font-size: var(--font-size-4xl);
+  margin-bottom: var(--spacing-lg);
+}
+
+.empty-state__title {
+  font-size: var(--font-size-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.empty-state__subtitle {
+  font-size: var(--font-size-base);
+}
+
+.empty-state--small {
+  padding: var(--spacing-2xl);
+}
+
+.empty-state--small .empty-state__icon {
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--spacing-base);
+}
+
+.empty-state--small .empty-state__title {
+  font-size: var(--font-size-base);
+  margin-bottom: var(--spacing-sm);
+}
+
+.empty-state--small .empty-state__subtitle {
+  font-size: var(--font-size-sm);
+}
+
+/* Month Headers */
+.month-header {
+  background: var(--color-surface-tertiary);
+  border: 1px solid var(--color-border-tertiary);
+  margin-bottom: var(--spacing-md);
+  text-align: center;
+  padding: var(--spacing-base);
+  border-radius: var(--radius-xl);
+}
+
+.month-header h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+/* Grouped Sets */
+.grouped-sets {
+  display: grid;
+  gap: var(--spacing-base);
+}
+
+.grouped-set-card {
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-base);
+}
+
+.grouped-set-title {
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-sm);
+}
+
+.grouped-set-count {
+  opacity: 0.6;
+  margin-left: var(--spacing-sm);
+}
+
+/* Wider screens: auto-fill nicely */
+@media (min-width: 700px) {
+  .pr-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
+/* Mobile Improvements */
+@media (max-width: 600px) {
+  .pr-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .empty-state {
+    padding: var(--spacing-2xl);
+  }
+  
+  .empty-state__icon {
+    font-size: var(--font-size-3xl);
+  }
+}

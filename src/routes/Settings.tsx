@@ -26,13 +26,13 @@ export default function Settings() {
     };
 
     return (
-      <div className="grid" style={{ gap: 8 }}>
-        <p style={{ opacity: 0.8 }}>
+      <div className="form-grid">
+        <p className="text-muted">
           One-time backfill: scan all your sets and store the best per exercise.
         </p>
-        {msg && <div style={{ color: '#8eff8e' }}>{msg}</div>}
-        {err && <div style={{ color: '#ff7b7b' }}>{err}</div>}
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
+        {msg && <div className="text-success">{msg}</div>}
+        {err && <div className="text-danger">{err}</div>}
+        <div className="form-actions">
           <button className="primary" onClick={run} disabled={busy}>
             {busy ? 'Rebuilding…' : 'Rebuild PRs'}
           </button>
@@ -42,12 +42,12 @@ export default function Settings() {
   }
 
   return (
-    <div className="grid" style={{ gap: 12 }}>
+    <div className="page-container">
       {/* Units */}
-      <div className="card row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="card row justify-between items-center">
         <div>
-          <div style={{ fontWeight: 600 }}>Units</div>
-          <div style={{ opacity: 0.8 }}>Current: {units.toUpperCase()}</div>
+          <div className="font-semibold">Units</div>
+          <div className="text-muted">Current: {units.toUpperCase()}</div>
         </div>
         <div className="row">
           <button onClick={() => setUnits('kg')} className={units === 'kg' ? 'primary' : ''}>kg</button>
@@ -56,13 +56,13 @@ export default function Settings() {
       </div>
 
       {/* Password */}
-      <div className="card grid" style={{ gap: 12, maxWidth: 520 }}>
-        <h3 style={{ marginTop: 0 }}>Password</h3>
+      <div className="card form-grid" style={{ maxWidth: 520 }}>
+        <h3 className="mt-0">Password</h3>
         <PasswordChanger />
       </div>
 
-      <div className="card grid" style={{ gap: 12, maxWidth: 520 }}>
-        <h3 style={{ marginTop: 0 }}>Personal Records</h3>
+      <div className="card form-grid" style={{ maxWidth: 520 }}>
+        <h3 className="mt-0">Personal Records</h3>
         <RebuildPRs />
       </div>
 
@@ -111,9 +111,9 @@ function PasswordChanger() {
   };
 
   return (
-    <div className="grid" style={{ gap: 10 }}>
-      {email && <div style={{ opacity: 0.8, fontSize: 14 }}>Signed in as <strong>{email}</strong></div>}
-      <div>
+    <div className="form-grid">
+      {email && <div className="text-muted text-small">Signed in as <strong>{email}</strong></div>}
+      <div className="form-field">
         <label>New password</label>
         <input
           type="password"
@@ -123,7 +123,7 @@ function PasswordChanger() {
           autoComplete="new-password"
         />
       </div>
-      <div>
+      <div className="form-field">
         <label>Confirm password</label>
         <input
           type="password"
@@ -133,9 +133,9 @@ function PasswordChanger() {
           autoComplete="new-password"
         />
       </div>
-      {err && <div style={{ color: '#ff7b7b' }}>{err}</div>}
-      {msg && <div style={{ color: '#8eff8e' }}>{msg}</div>}
-      <div className="row" style={{ justifyContent: 'flex-end' }}>
+      {err && <div className="text-danger">{err}</div>}
+      {msg && <div className="text-success">{msg}</div>}
+      <div className="form-actions">
         <button className="primary" onClick={onSave} disabled={saving}>Save password</button>
       </div>
     </div>

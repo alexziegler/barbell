@@ -1,0 +1,122 @@
+/* Base styles */
+* { 
+  box-sizing: border-box; 
+}
+
+body { 
+  margin: 0; 
+  background: var(--color-background); 
+  color: var(--color-text);
+  font-family: ui-sans-serif, system-ui, Arial, sans-serif;
+}
+
+a { 
+  color: inherit; 
+  text-decoration: none; 
+}
+
+/* Layout utilities */
+.container { 
+  max-width: var(--container-max-width); 
+  margin: 0 auto; 
+  padding: var(--spacing-lg); 
+}
+
+.card { 
+  background: var(--color-surface); 
+  border: 1px solid var(--color-border); 
+  border-radius: var(--radius-xl); 
+  padding: var(--spacing-lg); 
+}
+
+.row { 
+  display: flex; 
+  gap: var(--spacing-base); 
+  flex-wrap: wrap; 
+}
+
+.grid { 
+  display: grid; 
+  gap: var(--spacing-base); 
+}
+
+.grid-2 { 
+  grid-template-columns: repeat(2, minmax(0, 1fr)); 
+}
+
+/* Form elements */
+input, select, button, textarea { 
+  background: var(--color-surface-secondary); 
+  color: var(--color-text); 
+  border: 1px solid var(--color-border-secondary); 
+  border-radius: var(--radius-md); 
+  padding: 10px 12px; 
+  transition: border-color var(--transition-base);
+}
+
+input:focus, select:focus, button:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.1);
+}
+
+button.primary { 
+  background: var(--color-primary); 
+  border-color: var(--color-primary); 
+  cursor: pointer; 
+  transition: all var(--transition-base);
+}
+
+button.primary:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+}
+
+button.ghost { 
+  background: transparent; 
+  transition: background-color var(--transition-base);
+}
+
+button.ghost:hover {
+  background: var(--color-surface-tertiary);
+}
+
+label { 
+  font-size: var(--font-size-sm); 
+  opacity: 0.8; 
+  margin-bottom: var(--spacing-sm); 
+  display: block; 
+  font-weight: var(--font-weight-medium);
+}
+
+/* Mobile Input Zoom Prevention */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    font-size: 16px !important;
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 44px;
+  }
+  
+  button {
+    min-height: 44px;
+    padding: 12px 16px;
+  }
+  
+  .row {
+    gap: var(--spacing-md);
+  }
+  
+  .card {
+    padding: var(--spacing-base);
+  }
+}

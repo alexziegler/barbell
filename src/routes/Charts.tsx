@@ -143,7 +143,7 @@ export default function Charts() {
   const exName = useMemo(() => exercises.find(e => e.id === exerciseId)?.name ?? '—', [exercises, exerciseId]);
 
   return (
-    <div className="grid" style={{ gap: 12 }}>
+    <div className="page-container">
       {/* Controls */}
       <div className="card controls">
         <div className="controls__row">

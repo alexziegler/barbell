@@ -15,12 +15,12 @@ export default function ExercisePicker({
   }, []);
 
   return (
-    <div className="grid" style={{ gap: 6 }}>
+    <div className="exercise-picker">
       <label>Exercise</label>
       {loading ? (
         <div>Loading…</div>
       ) : (
-        <div className="row" style={{ gap: 8 }}>
+        <div className="form-row">
           <select value={value ?? ''} onChange={e => onChange(e.target.value)}>
             <option value="" disabled>Select…</option>
             {exs.map(e => (

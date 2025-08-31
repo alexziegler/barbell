@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { getExercises, listRecentDays, listSetsByDay, updateSet, deleteSet, listExerciseBadgesForDays } from "../lib/api";
+import { getExercises, listRecentDays, listSetsByDay, updateSet, deleteSet, listExerciseBadgesForDays, getPRs } from "../lib/api";
 import InlineSetEditor from "../components/InlineSetEditor";
 import type { Exercise } from "../types";
 
 /** DD/MM/YYYY */
 function formatDate(isoLike: string | Date) {
   return new Date(isoLike).toLocaleDateString("en-GB");
+}
+
+/** Format month and year for display */
+function formatMonthYear(isoLike: string | Date) {
+  return new Date(isoLike).toLocaleDateString("en-GB", { 
+    month: "long", 
+    year: "numeric" 
+  });
 }
 
 type DayKey = string; // "YYYY-MM-DD"
@@ -19,14 +27,23 @@ export default function History() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [badgesByDay, setBadgesByDay] = useState<Record<DayKey, string[]>>({});
 
+  // Personal Records
+  const [prs, setPRs] = useState<Array<{
+    exerciseId: string;
+    exerciseName: string;
+    weightPR: { value: number; dateISO: string } | null;
+    oneRMPR: { value: number; dateISO: string } | null;
+  }>>([]);
+  const [prsExpanded, setPRsExpanded] = useState(false);
+  const [prsMetric, setPRsMetric] = useState<'weight' | '1rm'>('weight');
+
   // Filters
   const [filterExerciseId, setFilterExerciseId] = useState<string>("");
-  const [filterText, setFilterText] = useState("");
 
   // Editing
   const [editingSet, setEditingSet] = useState<{ day: DayKey; set: any } | null>(null);
 
-  // Load recent days + exercises
+  // Load recent days + exercises + PRs
   useEffect(() => {
     (async () => {
       const ds = await listRecentDays(60);
@@ -36,6 +53,7 @@ export default function History() {
       setBadgesByDay(map);
     })();
     getExercises().then(setExercises);
+    getPRs().then(setPRs);
   }, []);
 
   // Computed: exercise map (id -> {name, short})
@@ -60,28 +78,11 @@ export default function History() {
   const applyFilters = (sets: any[]) => {
     if (!sets?.length) return sets;
 
-    const text = filterText.trim().toLowerCase();
     const wantExerciseId = filterExerciseId || null;
 
     return sets.filter((s) => {
       const matchesExercise = wantExerciseId ? s.exercise_id === wantExerciseId : true;
-      if (!matchesExercise) return false;
-
-      if (text) {
-        const ex = exMap.get(s.exercise_id);
-        const hay = [
-          ex?.name ?? "",
-          ex?.short ?? "",
-          String(s.weight ?? ""),
-          String(s.reps ?? ""),
-          String(s.rpe ?? ""),
-          s.failed ? "failed" : "",
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!hay.includes(text)) return false;
-      }
-      return true;
+      return matchesExercise;
     });
   };
 
@@ -108,14 +109,14 @@ export default function History() {
     for (const [day, sets] of Object.entries(expanded)) next[day] = applyFilters(sets);
     setExpanded(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterExerciseId, filterText]);
+  }, [filterExerciseId]);
 
   return (
-    <div className="grid" style={{ gap: 12 }}>
+    <div className="page-container">
       {/* Filter bar */}
       <div className="card">
-        <div className="row" style={{ gap: 12, alignItems: "end" }}>
-          <div>
+        <div className="form-row items-end">
+          <div className="form-field">
             <label>Filter by exercise</label>
             <select value={filterExerciseId} onChange={(e) => setFilterExerciseId(e.target.value)}>
               <option value="">All exercises</option>
@@ -126,21 +127,10 @@ export default function History() {
               ))}
             </select>
           </div>
-          <div style={{ flex: 1 }}>
-            <label>Search (exercise/weight/reps/RPE/failed)</label>
-            <input
-              placeholder="e.g., squat, 132.5, failed"
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-            />
-          </div>
-          {(filterExerciseId || filterText) && (
+          {filterExerciseId && (
             <button
               className="ghost"
-              onClick={() => {
-                setFilterExerciseId("");
-                setFilterText("");
-              }}
+              onClick={() => setFilterExerciseId("")}
             >
               Clear
             </button>
@@ -148,56 +138,151 @@ export default function History() {
         </div>
       </div>
 
-      {/* Day list */}
-      {days.map((day) => {
-        const daySets = expanded[day];
-        const badges = badgesByDay[day] ?? []; // ← use precomputed badges even when collapsed
-
-        return (
-          <div key={day} className="card">
-            <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-              <div className="workout-header">
-                <strong>{formatDate(day)}</strong>
-                {badges.length > 0 && (
-                  <>
-                    {" • "}
-                    {badges.map((b) => (
-                      <span key={b} className="tag">{b}</span>
-                    ))}
-                  </>
-                )}
-              </div>
-              <button className="ghost" onClick={() => toggleDay(day)}>
-                {daySets ? "Hide sets" : "View sets"}
-              </button>
-            </div>
-            {daySets && (
-              <div style={{ marginTop: 8 }}>
-                <GroupedSets
-                  day={day}
-                  sets={daySets}
-                  exercises={exercises}
-                  onEdit={(s) => setEditingSet({ day, set: s })}
-                />
+      {/* Personal Records */}
+      <div className="card">
+        <div className="row justify-between items-center">
+          <h3 className="page-title">
+            🏆 PRs
+            {prs.length > 0 && prsExpanded && (
+              <span className="page-subtitle">
+                ({prs.filter(pr => prsMetric === 'weight' ? pr.weightPR : pr.oneRMPR).length} {prsMetric === 'weight' ? 'weight' : '1RM'} PR{prs.filter(pr => prsMetric === 'weight' ? pr.weightPR : pr.oneRMPR).length > 1 ? 's' : ''})
+              </span>
+            )}
+          </h3>
+          <button 
+            className="ghost btn-small" 
+            onClick={() => setPRsExpanded(!prsExpanded)}
+          >
+            {prsExpanded ? '▼' : '▶'}
+          </button>
+        </div>
+        
+        {prsExpanded && (
+          <>
+            {prs.length > 0 ? (
+              <>
+                {/* Metric Toggle */}
+                <div className="row justify-center mb-base">
+                  <button
+                    className={`btn-toggle ${prsMetric === 'weight' ? 'is-active' : ''}`}
+                    onClick={() => setPRsMetric('weight')}
+                  >
+                    Weight PRs
+                  </button>
+                  <button
+                    className={`btn-toggle ${prsMetric === '1rm' ? 'is-active' : ''}`}
+                    onClick={() => setPRsMetric('1rm')}
+                  >
+                    1RM PRs
+                  </button>
+                </div>
+                
+                {/* PR Cards */}
+                <div className="pr-grid">
+                  {prs
+                    .filter(pr => prsMetric === 'weight' ? pr.weightPR : pr.oneRMPR)
+                    .map((pr) => {
+                      const prData = prsMetric === 'weight' ? pr.weightPR : pr.oneRMPR;
+                      if (!prData) return null;
+                      
+                      return (
+                        <div key={pr.exerciseId} className="pr-stat">
+                          <div className="row justify-between items-center">
+                            <div className="font-semibold text-small">
+                              {pr.exerciseName}
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-large">
+                                {Number(prData.value).toFixed(2)} kg
+                              </div>
+                              <div className="text-xs opacity-50">
+                                {formatDate(prData.dateISO)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-state__icon">🏋️</div>
+                <div className="empty-state__title">No personal records yet</div>
+                <div className="empty-state__subtitle">Start logging sets to see your PRs here!</div>
               </div>
             )}
+          </>
+        )}
+      </div>
+
+      {/* Day list */}
+      {days.map((day, index) => {
+        const daySets = expanded[day];
+        const badges = badgesByDay[day] ?? []; // ← use precomputed badges even when collapsed
+        
+        // Check if we need to show a month header
+        const showMonthHeader = index === 0 || 
+          new Date(day).getMonth() !== new Date(days[index - 1]).getMonth() ||
+          new Date(day).getFullYear() !== new Date(days[index - 1]).getFullYear();
+
+        return (
+          <div key={day}>
+            {/* Month header */}
+            {showMonthHeader && (
+              <div className="month-header">
+                <h3>
+                  {formatMonthYear(day)}
+                </h3>
+              </div>
+            )}
+            
+            {/* Day card */}
+            <div className="card">
+              <div className="row justify-between items-center">
+                <div className="workout-header">
+                  <strong>{formatDate(day)}</strong>
+                  {badges.length > 0 && (
+                    <>
+                      {" • "}
+                      {badges.map((b) => (
+                        <span key={b} className="tag">{b}</span>
+                      ))}
+                    </>
+                  )}
+                </div>
+                <button className="ghost" onClick={() => toggleDay(day)}>
+                  {daySets ? "Hide sets" : "View sets"}
+                </button>
+              </div>
+              {daySets && (
+                <div className="mt-md">
+                  <GroupedSets
+                    day={day}
+                    sets={daySets}
+                    exercises={exercises}
+                    onEdit={(s) => setEditingSet({ day, set: s })}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
 
       {/* Inline editor row */}
       {editingSet && (
-        <div className="card" style={{ borderStyle: "dashed" }}>
-          <h4 style={{ marginTop: 0 }}>Edit set</h4>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div className="card border-dashed">
+          <h4 className="mt-0">Edit set</h4>
+          <table className="inline-editor-table">
             <thead>
               <tr>
-                <th style={{ textAlign: "left" }}>Exercise</th>
+                <th>Exercise</th>
                 <th>Weight (kg)</th>
                 <th>Reps</th>
                 <th>RPE</th>
                 <th>Failed</th>
-                <th style={{ textAlign: "right" }}>Actions</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -205,6 +290,7 @@ export default function History() {
                 set={editingSet.set}
                 exercises={exercises}
                 showTime={false}
+                showDate={true}
                 onSave={async (patch) => {
                   await updateSet(editingSet.set.id, patch);
                   await refreshDay(editingSet.day);
@@ -248,23 +334,23 @@ function GroupedSets({
   const names = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
   return (
-    <div className="grid" style={{ gap: 12 }}>
+    <div className="grouped-sets">
       {names.map((name) => {
         const group = groups[name];
         return (
-          <div key={name} className="card" style={{ background: "#0f1116" }}>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>
-              {name} <span style={{ opacity: 0.6 }}>({group.length} set{group.length > 1 ? "s" : ""})</span>
+          <div key={name} className="grouped-set-card">
+            <div className="grouped-set-title">
+              {name} <span className="grouped-set-count">({group.length} set{group.length > 1 ? "s" : ""})</span>
             </div>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table className="table">
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left" }}>Exercise</th>
+                  <th>Exercise</th>
                   <th>Weight (kg)</th>
                   <th>Reps</th>
                   <th>RPE</th>
                   <th>Failed</th>
-                  <th style={{ textAlign: "right" }}>Actions</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,11 +358,11 @@ function GroupedSets({
                   <tr key={s.id}>
                     {/* empty exercise cell to align with editor dropdown column */}
                     <td />
-                    <td style={{ textAlign: "center" }}>{s.weight}</td>
-                    <td style={{ textAlign: "center" }}>{s.reps}</td>
-                    <td style={{ textAlign: "center" }}>{s.rpe ?? "—"}</td>
-                    <td style={{ textAlign: "center" }}>{s.failed ? "✔︎" : ""}</td>
-                    <td className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
+                    <td className="text-center">{s.weight}</td>
+                    <td className="text-center">{s.reps}</td>
+                    <td className="text-center">{s.rpe ?? "—"}</td>
+                    <td className="text-center">{s.failed ? "✔︎" : ""}</td>
+                    <td className="table-actions">
                       <button className="ghost" onClick={() => onEdit(s)}>
                         Edit
                       </button>

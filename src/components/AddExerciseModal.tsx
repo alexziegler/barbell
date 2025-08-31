@@ -43,12 +43,12 @@ export default function AddExerciseModal({
   };
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal">
-        <h3 style={{ marginTop: 0 }}>Add exercise</h3>
-        <form onSubmit={submit} className="grid" style={{ gap: 10 }}>
-          <div className="grid" style={{ gap: 6 }}>
-            <label>Name</label>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>🏋️ Add Exercise</h3>
+        <form onSubmit={submit} className="form-grid" autoComplete="off">
+          <div className="form-field">
+            <label>Exercise Name</label>
             <input
               autoFocus
               value={name}
@@ -56,23 +56,34 @@ export default function AddExerciseModal({
                 setName(e.target.value);
                 if (!shortName) setShortName(suggestShort(e.target.value));
               }}
-              placeholder="e.g., Front squat"
+              placeholder="e.g., Front squat, Deadlift, Bench press"
               required
+              autoComplete="new-password"
             />
           </div>
-          <div className="grid" style={{ gap: 6 }}>
-            <label>Acronym (short)</label>
+          
+          <div className="form-field">
+            <label>Short Name (Optional)</label>
             <input
               value={shortName}
               onChange={(e) => setShortName(e.target.value.toUpperCase())}
-              placeholder="e.g., FS"
+              placeholder="e.g., FS, DL, BP"
               maxLength={8}
+              autoComplete="new-password"
             />
-            <small style={{ opacity: .75 }}>Used for compact tags and tables.</small>
+            <small>
+              Used for compact display in tables and badges. 
+              {shortName ? ` Will be saved as: "${shortName}"` : ''}
+            </small>
           </div>
-          <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
-            <button type="button" className="ghost" onClick={onClose}>Cancel</button>
-            <button className="primary" type="submit">Save</button>
+          
+          <div className="form-actions">
+            <button type="button" className="ghost" onClick={onClose}>
+              Cancel
+            </button>
+            <button className="primary" type="submit" disabled={!name.trim()}>
+              {name.trim() ? 'Add Exercise' : 'Enter Exercise Name'}
+            </button>
           </div>
         </form>
       </div>

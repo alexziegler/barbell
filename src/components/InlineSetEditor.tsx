@@ -14,19 +14,24 @@ export default function InlineSetEditor({
   onCancel,
   onDelete,
   showTime = true,
+  showDate = false,
 }: {
   set: any;
   exercises: Exercise[];
-  onSave: (patch: { exercise_id: string; weight: number; reps: number; rpe: number|null; failed: boolean }) => void;
+  onSave: (patch: { exercise_id: string; weight: number; reps: number; rpe: number|null; failed: boolean; performed_at?: string }) => void;
   onCancel: () => void;
   onDelete?: () => void;
   showTime?: boolean;
+  showDate?: boolean;
 }) {
   const [exerciseId, setExerciseId] = useState(set.exercise_id);
   const [reps, setReps] = useState<number>(set.reps);
   const [rpe, setRpe] = useState<number | ''>(set.rpe ?? '');
   const [failed, setFailed] = useState<boolean>(!!set.failed);
   const [weightStr, setWeightStr] = useState<string>(String(set.weight).replace('.', ','));
+  const [performedAt, setPerformedAt] = useState<string>(
+    set.performed_at ? new Date(set.performed_at).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16)
+  );
 
   useEffect(() => {
     setExerciseId(set.exercise_id);
@@ -40,27 +45,38 @@ export default function InlineSetEditor({
           {exercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
         </select>
       </td>
-      <td style={{ textAlign: 'center' }}>
+      <td className="text-center">
         <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*"
-               value={weightStr} onChange={e => setWeightStr(e.target.value)} style={{ width: 90 }} />
+               value={weightStr} onChange={e => setWeightStr(e.target.value)} />
       </td>
-      <td style={{ textAlign: 'center' }}>
-        <input type="number" value={reps} onChange={e => setReps(parseInt(e.target.value))} style={{ width: 70 }} />
+      <td className="text-center">
+        <input type="number" value={reps} onChange={e => setReps(parseInt(e.target.value))} />
       </td>
-      <td style={{ textAlign: 'center' }}>
-        <input type="number" value={rpe} onChange={e => setRpe(e.target.value === '' ? '' : parseFloat(e.target.value))} style={{ width: 70 }} />
+      <td className="text-center">
+        <input type="number" value={rpe} onChange={e => setRpe(e.target.value === '' ? '' : parseFloat(e.target.value))} />
       </td>
-      <td style={{ textAlign: 'center' }}>
+      <td className="text-center">
         <input type="checkbox" checked={failed} onChange={e => setFailed(e.target.checked)} />
       </td>
 
-      <td className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+      {showDate && (
+        <td>
+          <input 
+            type="datetime-local" 
+            value={performedAt} 
+            onChange={e => setPerformedAt(e.target.value)}
+          />
+        </td>
+      )}
+
+      <td className="table-actions">
         <button className="primary" onClick={() => onSave({
           exercise_id: exerciseId,
           weight: parseLocalizedDecimal(weightStr) || 0,
           reps,
           rpe: rpe === '' ? null : rpe,
           failed,
+          performed_at: showDate ? new Date(performedAt).toISOString() : undefined,
         })}>Save</button>
         <button className="ghost" onClick={onCancel}>Cancel</button>
         {onDelete && <button onClick={onDelete}>Delete</button>}
