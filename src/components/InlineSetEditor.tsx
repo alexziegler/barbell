@@ -14,22 +14,18 @@ export default function InlineSetEditor({
   onCancel,
   onDelete,
   showTime = true,
-  showNotes = false,
 }: {
   set: any;
   exercises: Exercise[];
-  onSave: (patch: { exercise_id: string; weight: number; reps: number; rpe: number|null; failed: boolean; notes: string|null }) => void;
+  onSave: (patch: { exercise_id: string; weight: number; reps: number; rpe: number|null; failed: boolean }) => void;
   onCancel: () => void;
   onDelete?: () => void;
   showTime?: boolean;
-  showNotes?: boolean;
 }) {
   const [exerciseId, setExerciseId] = useState(set.exercise_id);
-  const [weight, setWeight] = useState<number>(set.weight);
   const [reps, setReps] = useState<number>(set.reps);
   const [rpe, setRpe] = useState<number | ''>(set.rpe ?? '');
   const [failed, setFailed] = useState<boolean>(!!set.failed);
-  const [notes, setNotes] = useState<string>(set.notes ?? '');
   const [weightStr, setWeightStr] = useState<string>(String(set.weight).replace('.', ','));
 
   useEffect(() => {
@@ -58,20 +54,13 @@ export default function InlineSetEditor({
         <input type="checkbox" checked={failed} onChange={e => setFailed(e.target.checked)} />
       </td>
 
-      {showNotes && (
-        <td>
-          <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes" />
-        </td>
-      )}
-
       <td className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
         <button className="primary" onClick={() => onSave({
           exercise_id: exerciseId,
-          weight: weight, // your parsed value
+          weight: parseLocalizedDecimal(weightStr) || 0,
           reps,
           rpe: rpe === '' ? null : rpe,
           failed,
-          notes: showNotes ? (notes || null) : null,
         })}>Save</button>
         <button className="ghost" onClick={onCancel}>Cancel</button>
         {onDelete && <button onClick={onDelete}>Delete</button>}

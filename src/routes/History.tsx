@@ -205,7 +205,6 @@ export default function History() {
                 set={editingSet.set}
                 exercises={exercises}
                 showTime={false}
-                showNotes={false}
                 onSave={async (patch) => {
                   await updateSet(editingSet.set.id, patch);
                   await refreshDay(editingSet.day);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 function parseLocalizedDecimal(s: string): number | null {
   if (s.trim() === '') return null;
@@ -22,7 +22,7 @@ export default function SetEditor({
   onAdd,
   units,
 }: {
-  onAdd: (s: { exercise_id?: string; weight: number; reps: number; rpe?: number|null; failed?: boolean; performed_at?: string }) => void;
+  onAdd: (s: { weight: number; reps: number; rpe?: number|null; failed?: boolean; performed_at?: string }) => void;
   units: 'kg'|'lb';
 }) {
   const [weightInput, setWeightInput] = useState('');

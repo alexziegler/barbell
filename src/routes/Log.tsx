@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ExercisePicker from '../components/ExercisePicker';
 import SetEditor from '../components/SetEditor';
 import InlineSetEditor from '../components/InlineSetEditor';
@@ -100,16 +100,15 @@ export default function Log() {
             <tbody>
               {sets.map((s: any) =>
                 editingSetId === s.id ? (
-                  <InlineSetEditor
-                    key={s.id}
-                    set={s}
-                    exercises={exercises}
-                    onSave={(patch) => onSaveSet(s.id, patch)}
-                    onCancel={() => setEditingSetId(null)}
-                    onDelete={() => onDelete(s.id)}
-                    showTime={false}
-                    showNotes={false}
-                  />
+                                  <InlineSetEditor
+                  key={s.id}
+                  set={s}
+                  exercises={exercises}
+                  onSave={(patch) => onSaveSet(s.id, patch)}
+                  onCancel={() => setEditingSetId(null)}
+                  onDelete={() => onDelete(s.id)}
+                  showTime={false}
+                />
                 ) : (
                   <tr key={s.id}>
                     <td>{s.exercise?.short_name ?? s.exercise?.name ?? '—'}</td>

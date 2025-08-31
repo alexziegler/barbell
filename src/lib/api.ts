@@ -16,7 +16,7 @@ function localNextDayStartISO(dayISO: string) {
 export async function getExercises(): Promise<Exercise[]> {
   const { data, error } = await supabase
     .from('exercises')
-    .select('id, user_id, name, short_name, category, is_bodyweight, created_at')
+    .select('id, user_id, name, short_name')
     .order('name', { ascending: true });
   if (error) throw error;
   return (data ?? []) as Exercise[];
@@ -50,43 +50,6 @@ export async function recomputePRs(): Promise<void> {
   if (error) throw error;
 }
 
-// Fetch precomputed PRs for the current user, both metrics
-export async function getPRs(): Promise<Array<{
-  exerciseId: string;
-  exerciseName: string;
-  weightPR: { value: number; dateISO: string } | null;
-  oneRMPR: { value: number; dateISO: string } | null;
-}>> {
-  const { data, error } = await supabase
-    .from('personal_records')
-    .select('exercise_id, metric, value, performed_at, exercise:exercises(name)');
-  if (error) throw error;
-
-  const byEx: Record<string, {
-    name: string;
-    weight?: { value: number; dateISO: string };
-    onerm?: { value: number; dateISO: string };
-  }> = {};
-
-  for (const r of (data ?? []) as any[]) {
-    const exId = r.exercise_id as string;
-    const metric = r.metric as string;
-    const name = r.exercise?.name ?? '—';
-    if (!byEx[exId]) byEx[exId] = { name };
-    if (metric === 'weight') byEx[exId].weight = { value: Number(r.value), dateISO: r.performed_at };
-    if (metric === '1rm') byEx[exId].onerm = { value: Number(r.value), dateISO: r.performed_at };
-  }
-
-  return Object.entries(byEx)
-    .map(([exerciseId, v]) => ({
-      exerciseId,
-      exerciseName: v.name,
-      weightPR: v.weight ?? null,
-      oneRMPR: v.onerm ?? null,
-    }))
-    .sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
-}
-
 
 export async function createExercise(input: { name: string; short_name: string | null }) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -95,8 +58,6 @@ export async function createExercise(input: { name: string; short_name: string |
     user_id: user.id,
     name: input.name.trim(),
     short_name: input.short_name?.trim() || null,
-    category: null,
-    is_bodyweight: false,
   };
   const { data, error } = await supabase
     .from('exercises')
