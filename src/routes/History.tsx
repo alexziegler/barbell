@@ -358,7 +358,7 @@ function GroupedSets({
                   <tr key={s.id}>
                     {/* empty exercise cell to align with editor dropdown column */}
                     <td />
-                    <td className="text-center">{s.weight}</td>
+                    <td className="text-center">{Number(s.weight).toFixed(2)}</td>
                     <td className="text-center">{s.reps}</td>
                     <td className="text-center">{s.rpe ?? "—"}</td>
                     <td className="text-center">{s.failed ? "✔︎" : ""}</td>

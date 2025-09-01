@@ -1,12 +1,9 @@
-import { useState } from 'react';
-import { useWorkoutStore } from '../state/useWorkoutStore';
+import { useEffect, useState } from 'react';
 import { signOut } from '../lib/api';
 import { supabase } from '../lib/supabaseClient';
 import { recomputePRs } from '../lib/api';
 
 export default function Settings() {
-  const units = useWorkoutStore((s) => s.units);
-  const setUnits = useWorkoutStore((s) => s.setUnits);
 
   function RebuildPRs() {
     const [busy, setBusy] = useState(false);
@@ -43,18 +40,6 @@ export default function Settings() {
 
   return (
     <div className="page-container">
-      {/* Units */}
-      <div className="card row justify-between items-center">
-        <div>
-          <div className="font-semibold">Units</div>
-          <div className="text-muted">Current: {units.toUpperCase()}</div>
-        </div>
-        <div className="row">
-          <button onClick={() => setUnits('kg')} className={units === 'kg' ? 'primary' : ''}>kg</button>
-          <button onClick={() => setUnits('lb')} className={units === 'lb' ? 'primary' : ''}>lb</button>
-        </div>
-      </div>
-
       {/* Password */}
       <div className="card form-grid" style={{ maxWidth: 520 }}>
         <h3 className="mt-0">Password</h3>
@@ -83,9 +68,14 @@ function PasswordChanger() {
   const [email, setEmail] = useState<string | null>(null);
 
   // fetch current user email (purely informational)
-  useState(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-  });
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return;
+      setEmail(data.user?.email ?? null);
+    });
+    return () => { mounted = false; };
+  }, []);
 
   const onSave = async () => {
     setErr(null);
