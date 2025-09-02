@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getExercises, listRecentDays, listSetsByDay, updateSet, deleteSet, listExerciseBadgesForDays, getPRs } from "../lib/api";
+import { getExercises, listRecentDays, listSetsByDay, updateSet, deleteSet, listExerciseBadgesForDays, getPRs, recomputePRs } from "../lib/api";
 import InlineSetEditor from "../components/InlineSetEditor";
 import type { Exercise } from "../types";
 
@@ -293,6 +293,10 @@ export default function History() {
                 showDate={true}
                 onSave={async (patch) => {
                   await updateSet(editingSet.set.id, patch);
+                  // Recompute PRs after an edit to keep PRs accurate
+                  await recomputePRs();
+                  // Refresh PR cards in UI
+                  getPRs().then(setPRs);
                   await refreshDay(editingSet.day);
                   setEditingSet(null);
                 }}
@@ -300,6 +304,10 @@ export default function History() {
                 onDelete={async () => {
                   if (!confirm("Delete this set?")) return;
                   await deleteSet(editingSet.set.id);
+                  // Recompute PRs after a delete since records may change
+                  await recomputePRs();
+                  // Refresh PR cards in UI
+                  getPRs().then(setPRs);
                   await refreshDay(editingSet.day);
                   setEditingSet(null);
                 }}

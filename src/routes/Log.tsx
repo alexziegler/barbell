@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import ExercisePicker from '../components/ExercisePicker';
 import SetEditor from '../components/SetEditor';
 import InlineSetEditor from '../components/InlineSetEditor';
-import { addSetBare, listSetsByDay, updateSet, deleteSet, getExercises, upsertPRForSet } from '../lib/api';
+import { addSetBare, listSetsByDay, updateSet, deleteSet, getExercises, upsertPRForSet, recomputePRs } from '../lib/api';
 import type { Exercise } from '../types';
 // Units fixed to kg
 
@@ -133,6 +133,8 @@ export default function Log() {
     setError(null);
     try {
       await updateSet(id, patch);
+      // Ensure PRs reflect the edited set
+      await recomputePRs();
       refreshSets();
       setEditingSetId(null);
     } catch (err) {
@@ -147,6 +149,8 @@ export default function Log() {
     setError(null);
     try {
       await deleteSet(id);
+      // Deletions can change PRs
+      await recomputePRs();
       refreshSets();
     } catch (err) {
       console.error('Failed to delete set:', err);
@@ -254,7 +258,7 @@ export default function Log() {
                             ✏️
                           </button>
                           <button 
-                            className="btn-icon" 
+                            className="ghost btn-icon" 
                             onClick={() => onDelete(s.id)}
                             aria-label={`Delete set: ${Number(s.weight).toFixed(2)} kg × ${s.reps} reps`}
                           >
