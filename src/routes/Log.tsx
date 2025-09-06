@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from 'react';
 import ExercisePicker from '../components/ExercisePicker';
 import SetEditor from '../components/SetEditor';
-import InlineSetEditor from '../components/InlineSetEditor';
+import EditSetModal from '../components/EditSetModal';
 import { addSetBare, listSetsByDay, updateSet, deleteSet, getExercises, upsertPRForSet, recomputePRs } from '../lib/api';
+import { formatNumber } from '../utils/format';
 import type { Exercise } from '../types';
 // Units fixed to kg
 
@@ -28,6 +29,7 @@ interface SetPatch {
   reps?: number;
   rpe?: number | null;
   failed?: boolean;
+  performed_at?: string;
 }
 
 // Helper functions
@@ -58,6 +60,7 @@ export default function Log() {
   const [sets, setSets] = useState<SetData[]>([]);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const editingSet = useMemo(() => sets.find(s => s.id === editingSetId) || null, [editingSetId, sets]);
 
   // Memoized values
   const groupedSets = useMemo(() => groupSetsByExercise(sets), [sets]);
@@ -211,33 +214,22 @@ export default function Log() {
         
         {groupedSets.length ? (
           <div className="space-y-lg">
-            {groupedSets.map(({ exercise, sets: exerciseSets }) => (
-              <div key={exercise.id} className="exercise-group">
-                <div className="exercise-header">
-                  <div className="exercise-badge">
-                    {exercise.short_name ?? exercise.name}
-                  </div>
-                  <div className="exercise-count">
-                    {exerciseSets.length} set{exerciseSets.length > 1 ? 's' : ''}
-                  </div>
-                </div>
-                
-                <div className="exercise-sets">
-                  {exerciseSets.map((s: SetData) =>
-                    editingSetId === s.id ? (
-                      <InlineSetEditor
-                        key={s.id}
-                        set={s}
-                        exercises={exercises}
-                        onSave={(patch) => onSaveSet(s.id, patch)}
-                        onCancel={() => setEditingSetId(null)}
-                        onDelete={() => onDelete(s.id)}
-                        showTime={false}
-                      />
-                    ) : (
+                  {groupedSets.map(({ exercise, sets: exerciseSets }) => (
+                      <div key={exercise.id} className="exercise-group">
+                        <div className="exercise-header">
+                          <div className="exercise-badge">
+                            {exercise.short_name ?? exercise.name}
+                          </div>
+                          <div className="exercise-count">
+                            {exerciseSets.length} set{exerciseSets.length > 1 ? 's' : ''}
+                          </div>
+                        </div>
+                        
+                        <div className="exercise-sets">
+                  {exerciseSets.map((s: SetData) => (
                       <div key={s.id} className="set-row">
                         <div className="set-info">
-                          <span className="set-weight">{Number(s.weight).toFixed(2)}</span>
+                          <span className="set-weight">{formatNumber(Number(s.weight))}</span>
                           <span className="set-separator">×</span>
                           <span className="set-reps">{s.reps}</span>
                           {s.rpe && (
@@ -253,25 +245,24 @@ export default function Log() {
                           <button 
                             className="ghost btn-icon" 
                             onClick={() => setEditingSetId(s.id)}
-                            aria-label={`Edit set: ${Number(s.weight).toFixed(2)} kg × ${s.reps} reps`}
+                            aria-label={`Edit set: ${formatNumber(Number(s.weight))} kg × ${s.reps} reps`}
                           >
                             ✏️
                           </button>
                           <button 
                             className="ghost btn-icon" 
                             onClick={() => onDelete(s.id)}
-                            aria-label={`Delete set: ${Number(s.weight).toFixed(2)} kg × ${s.reps} reps`}
+                            aria-label={`Delete set: ${formatNumber(Number(s.weight))} kg × ${s.reps} reps`}
                           >
                             🗑️
                           </button>
                         </div>
                       </div>
-                    )
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+                    ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
         ) : (
           <div className="empty-state">
             <div className="empty-state__icon">📊</div>
@@ -280,6 +271,19 @@ export default function Log() {
           </div>
         )}
       </div>
+    {/* Edit Set Modal */}
+    <EditSetModal
+      open={!!editingSet}
+      set={editingSet}
+      exercises={exercises}
+      onClose={() => setEditingSetId(null)}
+      onDelete={editingSet ? (() => onDelete(editingSet.id)) : undefined}
+      onSave={(patch) => {
+        if (!editingSet) return;
+        onSaveSet(editingSet.id, patch);
+        setEditingSetId(null);
+      }}
+    />
     </div>
   );
 }

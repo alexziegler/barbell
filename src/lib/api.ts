@@ -56,6 +56,7 @@ export async function getPRs(): Promise<Array<{
   exerciseName: string;
   weightPR: { value: number; dateISO: string } | null;
   oneRMPR: { value: number; dateISO: string } | null;
+  volumePR: { value: number; dateISO: string } | null;
 }>> {
   const { data, error } = await supabase
     .from('personal_records')
@@ -66,6 +67,7 @@ export async function getPRs(): Promise<Array<{
     name: string;
     weight?: { value: number; dateISO: string };
     onerm?: { value: number; dateISO: string };
+    volume?: { value: number; dateISO: string };
   }> = {};
 
   for (const r of (data ?? []) as any[]) {
@@ -75,6 +77,7 @@ export async function getPRs(): Promise<Array<{
     if (!byEx[exId]) byEx[exId] = { name };
     if (metric === 'weight') byEx[exId].weight = { value: Number(r.value), dateISO: r.performed_at };
     if (metric === '1rm') byEx[exId].onerm = { value: Number(r.value), dateISO: r.performed_at };
+    if (metric === 'volume') byEx[exId].volume = { value: Number(r.value), dateISO: r.performed_at };
   }
 
   return Object.entries(byEx)
@@ -83,6 +86,7 @@ export async function getPRs(): Promise<Array<{
       exerciseName: v.name,
       weightPR: v.weight ?? null,
       oneRMPR: v.onerm ?? null,
+      volumePR: v.volume ?? null,
     }))
     .sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getExercises, listRecentDays, listSetsByDay, updateSet, deleteSet, listExerciseBadgesForDays, getPRs, recomputePRs } from "../lib/api";
-import InlineSetEditor from "../components/InlineSetEditor";
+import { formatNumber } from "../utils/format";
+import EditSetModal from "../components/EditSetModal";
 import type { Exercise } from "../types";
 
 /** DD/MM/YYYY */
@@ -33,9 +34,11 @@ export default function History() {
     exerciseName: string;
     weightPR: { value: number; dateISO: string } | null;
     oneRMPR: { value: number; dateISO: string } | null;
+    volumePR: { value: number; dateISO: string } | null;
   }>>([]);
   const [prsExpanded, setPRsExpanded] = useState(false);
-  const [prsMetric, setPRsMetric] = useState<'weight' | '1rm'>('weight');
+  const [prsMetric, setPRsMetric] = useState<'weight' | '1rm' | 'volume'>('weight');
+  const [clubExpanded, setClubExpanded] = useState(false);
 
   // Filters
   const [filterExerciseId, setFilterExerciseId] = useState<string>("");
@@ -111,6 +114,60 @@ export default function History() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterExerciseId]);
 
+  // 1000 lb club progress (Bench, Deadlift, Back Squat based on 1RM PRs)
+  const thousandLb = useMemo(() => {
+    if (!prs?.length) {
+      return {
+        benchKg: null as number | null,
+        deadliftKg: null as number | null,
+        squatKg: null as number | null,
+        totalKg: 0,
+        percent: 0,
+      };
+    }
+
+    const lower = (s: string) => s.toLowerCase();
+
+    // Helper to pick best matching exercise by name rules
+    function pickPR(match: (name: string) => boolean, exclude?: (name: string) => boolean) {
+      const candidates = prs
+        .filter(p => !!p.oneRMPR)
+        .filter(p => match(lower(p.exerciseName)))
+        .filter(p => !exclude || !exclude(lower(p.exerciseName)));
+      if (!candidates.length) return null as { value: number; dateISO: string } | null;
+      // pick highest 1RM among candidates
+      return candidates.reduce((best, cur) => {
+        if (!best || (cur.oneRMPR!.value > best.value)) return cur.oneRMPR!;
+        return best;
+      }, null as { value: number; dateISO: string } | null);
+    }
+
+    // Bench: name includes 'bench'
+    const bench = pickPR(name => name.includes('bench'));
+
+    // Deadlift: includes 'deadlift' or 'dead lift'
+    const deadlift = pickPR(name => name.includes('deadlift') || name.includes('dead lift'));
+
+    // Squat: prefer names including 'back' + 'squat'; else any 'squat' that is not front/overhead
+    const squatPreferred = pickPR(name => name.includes('squat') && name.includes('back'));
+    const squatFallback = squatPreferred ?? pickPR(
+      name => name.includes('squat'),
+      name => name.includes('front') || name.includes('overhead') || name.includes('zercher')
+    );
+    const squat = squatFallback;
+
+    const benchKg = bench?.value ?? null;
+    const deadliftKg = deadlift?.value ?? null;
+    const squatKg = squat?.value ?? null;
+
+    const partials = [benchKg, deadliftKg, squatKg].filter((v): v is number => typeof v === 'number');
+    const totalKg = partials.reduce((a, b) => a + b, 0);
+    const targetKg = 1000 * 0.45359237; // 1000 lb in kg
+    const percent = Math.max(0, Math.min(100, (totalKg / targetKg) * 100));
+
+    return { benchKg, deadliftKg, squatKg, totalKg, percent };
+  }, [prs]);
+
   return (
     <div className="page-container">
       {/* Filter bar */}
@@ -141,19 +198,23 @@ export default function History() {
       {/* Personal Records */}
       <div className="card">
         <div className="row justify-between items-center">
-          <h3 className="page-title">
+          <h3 className="page-title mb-0">
             🏆 PRs
             {prs.length > 0 && prsExpanded && (
               <span className="page-subtitle">
-                ({prs.filter(pr => prsMetric === 'weight' ? pr.weightPR : pr.oneRMPR).length} {prsMetric === 'weight' ? 'weight' : '1RM'} PR{prs.filter(pr => prsMetric === 'weight' ? pr.weightPR : pr.oneRMPR).length > 1 ? 's' : ''})
+                ({prs.filter(pr => (
+                  prsMetric === 'weight' ? pr.weightPR : prsMetric === '1rm' ? pr.oneRMPR : pr.volumePR
+                )).length} {prsMetric === 'weight' ? 'weight' : prsMetric === '1rm' ? '1RM' : 'volume'} PR{prs.filter(pr => (
+                  prsMetric === 'weight' ? pr.weightPR : prsMetric === '1rm' ? pr.oneRMPR : pr.volumePR
+                )).length > 1 ? 's' : ''})
               </span>
             )}
           </h3>
           <button 
-            className="ghost btn-small" 
+            className="ghost btn-icon" 
             onClick={() => setPRsExpanded(!prsExpanded)}
           >
-            {prsExpanded ? '▼' : '▶'}
+            {prsExpanded ? '▲' : '▼'}
           </button>
         </div>
         
@@ -175,14 +236,20 @@ export default function History() {
                   >
                     1RM PRs
                   </button>
+                  <button
+                    className={`btn-toggle ${prsMetric === 'volume' ? 'is-active' : ''}`}
+                    onClick={() => setPRsMetric('volume')}
+                  >
+                    Volume PRs
+                  </button>
                 </div>
                 
                 {/* PR Cards */}
                 <div className="pr-grid">
                   {prs
-                    .filter(pr => prsMetric === 'weight' ? pr.weightPR : pr.oneRMPR)
+                    .filter(pr => (prsMetric === 'weight' ? pr.weightPR : prsMetric === '1rm' ? pr.oneRMPR : pr.volumePR))
                     .map((pr) => {
-                      const prData = prsMetric === 'weight' ? pr.weightPR : pr.oneRMPR;
+                      const prData = prsMetric === 'weight' ? pr.weightPR : prsMetric === '1rm' ? pr.oneRMPR : pr.volumePR;
                       if (!prData) return null;
                       
                       return (
@@ -193,7 +260,7 @@ export default function History() {
                             </div>
                             <div className="text-right">
                               <div className="font-bold text-large">
-                                {Number(prData.value).toFixed(2)} kg
+                                {formatNumber(Number(prData.value))} {prsMetric === 'volume' ? 'kg·reps' : 'kg'}
                               </div>
                               <div className="text-xs opacity-50">
                                 {formatDate(prData.dateISO)}
@@ -212,6 +279,67 @@ export default function History() {
                 <div className="empty-state__subtitle">Start logging sets to see your PRs here!</div>
               </div>
             )}
+          </>
+        )}
+      </div>
+
+      {/* 1000 lb Club Progress */}
+      <div className="card">
+        <div className="row justify-between items-center">
+          <h3 className="page-title mb-0">🏅 1000 lb Club</h3>
+          <button
+            className="ghost btn-icon"
+            onClick={() => setClubExpanded(!clubExpanded)}
+          >
+            {clubExpanded ? '▲' : '▼'}
+          </button>
+        </div>
+        {clubExpanded && (
+          <>
+            <div className="mb-base">
+              {/* Progress bar */}
+              {(() => {
+                const targetKg = 1000 * 0.45359237;
+                const pct = thousandLb.percent;
+                return (
+                  <div>
+                    <div className="row justify-between items-center mb-sm">
+                      <div className="text-small opacity-70">Progress</div>
+                      <div className="text-small">
+                        {formatNumber(thousandLb.totalKg)} / {formatNumber(targetKg)} kg
+                        {" "}
+                        <span className="opacity-60">({formatNumber(Number(pct))}%)</span>
+                      </div>
+                    </div>
+                    <div style={{ background: 'var(--border-color, #e5e7eb)', height: 10, borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent, #3b82f6)' }} />
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Breakdown */}
+            <div className="pr-grid">
+              <div className="pr-stat">
+                <div className="row justify-between items-center">
+                  <div className="font-semibold text-small">Bench Press 1RM</div>
+                  <div className="text-right font-bold text-large">{thousandLb.benchKg != null ? `${formatNumber(thousandLb.benchKg)} kg` : '—'}</div>
+                </div>
+              </div>
+              <div className="pr-stat">
+                <div className="row justify-between items-center">
+                  <div className="font-semibold text-small">Deadlift 1RM</div>
+                  <div className="text-right font-bold text-large">{thousandLb.deadliftKg != null ? `${formatNumber(thousandLb.deadliftKg)} kg` : '—'}</div>
+                </div>
+              </div>
+              <div className="pr-stat">
+                <div className="row justify-between items-center">
+                  <div className="font-semibold text-small">Back Squat 1RM</div>
+                  <div className="text-right font-bold text-large">{thousandLb.squatKg != null ? `${formatNumber(thousandLb.squatKg)} kg` : '—'}</div>
+                </div>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -251,8 +379,8 @@ export default function History() {
                     </>
                   )}
                 </div>
-                <button className="ghost" onClick={() => toggleDay(day)}>
-                  {daySets ? "Hide sets" : "View sets"}
+                <button className="ghost btn-icon" onClick={() => toggleDay(day)} aria-label={daySets ? 'Collapse day' : 'Expand day'}>
+                  {daySets ? '▲' : '▼'}
                 </button>
               </div>
               {daySets && (
@@ -270,52 +398,29 @@ export default function History() {
         );
       })}
 
-      {/* Inline editor row */}
-      {editingSet && (
-        <div className="card border-dashed">
-          <h4 className="mt-0">Edit set</h4>
-          <table className="inline-editor-table">
-            <thead>
-              <tr>
-                <th>Exercise</th>
-                <th>Weight (kg)</th>
-                <th>Reps</th>
-                <th>RPE</th>
-                <th>Failed</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <InlineSetEditor
-                set={editingSet.set}
-                exercises={exercises}
-                showTime={false}
-                showDate={true}
-                onSave={async (patch) => {
-                  await updateSet(editingSet.set.id, patch);
-                  // Recompute PRs after an edit to keep PRs accurate
-                  await recomputePRs();
-                  // Refresh PR cards in UI
-                  getPRs().then(setPRs);
-                  await refreshDay(editingSet.day);
-                  setEditingSet(null);
-                }}
-                onCancel={() => setEditingSet(null)}
-                onDelete={async () => {
-                  if (!confirm("Delete this set?")) return;
-                  await deleteSet(editingSet.set.id);
-                  // Recompute PRs after a delete since records may change
-                  await recomputePRs();
-                  // Refresh PR cards in UI
-                  getPRs().then(setPRs);
-                  await refreshDay(editingSet.day);
-                  setEditingSet(null);
-                }}
-              />
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Edit Set Modal for History */}
+      <EditSetModal
+        open={!!editingSet}
+        set={editingSet?.set ?? null}
+        exercises={exercises}
+        onClose={() => setEditingSet(null)}
+        onSave={async (patch) => {
+          if (!editingSet) return;
+          await updateSet(editingSet.set.id, patch);
+          await recomputePRs();
+          getPRs().then(setPRs);
+          await refreshDay(editingSet.day);
+          setEditingSet(null);
+        }}
+        onDelete={editingSet ? (async () => {
+          if (!confirm("Delete this set?")) return;
+          await deleteSet(editingSet.set.id);
+          await recomputePRs();
+          getPRs().then(setPRs);
+          await refreshDay(editingSet.day);
+          setEditingSet(null);
+        }) : undefined}
+      />
     </div>
   );
 }
@@ -342,43 +447,46 @@ function GroupedSets({
   const names = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
   return (
-    <div className="grouped-sets">
+    <div className="space-y-lg">
       {names.map((name) => {
         const group = groups[name];
+        const first = group[0];
+        const badge = first?.exercise?.short_name ?? first?.exercise?.name ?? name;
         return (
-          <div key={name} className="grouped-set-card">
-            <div className="grouped-set-title">
-              {name} <span className="grouped-set-count">({group.length} set{group.length > 1 ? "s" : ""})</span>
+          <div key={name} className="exercise-group">
+            <div className="exercise-header">
+              <div className="exercise-badge">{badge}</div>
+              <div className="exercise-count">{group.length} set{group.length > 1 ? 's' : ''}</div>
             </div>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Exercise</th>
-                  <th>Weight (kg)</th>
-                  <th>Reps</th>
-                  <th>RPE</th>
-                  <th>Failed</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {group.map((s) => (
-                  <tr key={s.id}>
-                    {/* empty exercise cell to align with editor dropdown column */}
-                    <td />
-                    <td className="text-center">{Number(s.weight).toFixed(2)}</td>
-                    <td className="text-center">{s.reps}</td>
-                    <td className="text-center">{s.rpe ?? "—"}</td>
-                    <td className="text-center">{s.failed ? "✔︎" : ""}</td>
-                    <td className="table-actions">
-                      <button className="ghost" onClick={() => onEdit(s)}>
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+            <div className="exercise-sets">
+              {group.map((s) => (
+                <div key={s.id} className="set-row">
+                  <div className="set-info">
+                    <span className="set-weight">{formatNumber(Number(s.weight))}</span>
+                    <span className="set-separator">×</span>
+                    <span className="set-reps">{s.reps}</span>
+                    {s.rpe && (
+                      <>
+                        <span className="set-separator">(</span>
+                        <span className="set-rpe">{s.rpe}</span>
+                        <span className="set-separator">)</span>
+                      </>
+                    )}
+                    {s.failed && <span className="set-failed">❌</span>}
+                  </div>
+                  <div className="set-actions">
+                    <button
+                      className="ghost btn-icon"
+                      onClick={() => onEdit(s)}
+                      aria-label={`Edit set: ${formatNumber(Number(s.weight))} kg × ${s.reps} reps`}
+                    >
+                      ✏️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })}

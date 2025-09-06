@@ -55,6 +55,11 @@
   transition: border-color var(--transition-base);
 }
 
+/* Compact width inputs for numeric controls in edit modal */
+.modal .input-compact {
+  max-width: 160px;
+}
+
 .modal input:focus {
   outline: none;
   border-color: var(--color-primary);

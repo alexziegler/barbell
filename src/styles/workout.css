@@ -296,6 +296,11 @@
   min-width: auto;
   width: auto;
   height: auto;
+  min-height: auto; /* override global mobile rule */
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-icon:hover {

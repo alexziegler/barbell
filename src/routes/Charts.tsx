@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getExercises } from '../lib/api';
 import { estimate1RM } from '../utils/oneRM';
+import { formatNumber } from '../utils/format';
 import {
   LineChart,
   Line,
@@ -299,7 +300,7 @@ export default function Charts() {
                 allowDecimals={false}
                 hide={true}
               />
-              <Tooltip formatter={(v:any, name) => [Math.round(v).toString(), name]} />
+              <Tooltip formatter={(v:any, name) => [formatNumber(Number(v)), name]} />
               <Legend />
               <Line 
                 type="monotone" 
