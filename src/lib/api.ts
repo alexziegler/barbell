@@ -109,7 +109,7 @@ export async function createExercise(input: { name: string; short_name: string |
   return data as Exercise;
 }
 
-// Create set without any workout_id (uses performed_at)
+// Create a set (sets-only; uses performed_at)
 export async function addSetBare(set: {
   exercise_id: string;
   weight: number;
@@ -129,7 +129,6 @@ export async function addSetBare(set: {
     rpe: set.rpe ?? null,
     failed: !!set.failed,
     performed_at: set.performed_at ?? null,
-    workout_id: null,
   };
 
   const { data, error } = await supabase

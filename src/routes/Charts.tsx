@@ -160,7 +160,7 @@ export default function Charts() {
       try {
         const { data: rows, error } = await supabase
           .from('sets')
-          .select('id, weight, reps, failed, created_at, workout:workouts(date)')
+          .select('id, weight, reps, failed, performed_at, created_at')
           .eq('exercise_id', exerciseId)
           .order('created_at', { ascending: true }); // no server-side date filter
         if (error) throw error;
@@ -173,7 +173,7 @@ export default function Charts() {
         for (const r of (rows ?? []) as any[]) {
           if (r.failed) continue;
 
-          const performedISO = r.workout?.date ?? r.created_at; // << actual training date
+          const performedISO = r.performed_at ?? r.created_at; // actual training date from set
           const performed = new Date(performedISO);
 
           // Client-side timeframe filter based on performed date

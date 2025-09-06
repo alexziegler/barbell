@@ -8,7 +8,6 @@ export type Exercise = {
 export type SetEntry = {
   id: string;
   user_id: string;
-  workout_id: string | null;
   exercise_id: string;
   weight: number;
   reps: number;

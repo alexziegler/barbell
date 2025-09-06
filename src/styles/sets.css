@@ -1,12 +1,12 @@
-/* Workout Header and Badges */
-.workout-header {
+/* Day Header and Badges */
+.day-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-xs);
 }
 
-.workout-header .tag {
+.day-header .tag {
   background-color: var(--color-border-secondary);
   padding: 2px var(--spacing-sm);
   border-radius: var(--radius-sm);
@@ -14,7 +14,7 @@
   font-weight: var(--font-weight-medium);
 }
 
-.workout-header .mood {
+.day-header .mood {
   font-style: italic;
   opacity: 0.8;
 }

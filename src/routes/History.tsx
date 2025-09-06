@@ -368,7 +368,7 @@ export default function History() {
             {/* Day card */}
             <div className="card">
               <div className="row justify-between items-center">
-                <div className="workout-header">
+                <div className="day-header">
                   <strong>{formatDate(day)}</strong>
                   {badges.length > 0 && (
                     <>
