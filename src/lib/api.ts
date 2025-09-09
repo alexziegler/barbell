@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import type { Exercise, SetEntry } from '../types';
+import { estimate1RM } from '../utils/oneRM';
 
 function localDayStartISO(dayISO: string) {
   // dayISO = 'YYYY-MM-DD' in local tz
@@ -39,15 +40,144 @@ export async function deleteSet(id: string): Promise<void> {
 export async function signOut() { await supabase.auth.signOut(); }
 
 // After inserting a set, update PRs; returns which metrics are new PRs
-export async function upsertPRForSet(setId: string): Promise<{ new_weight: boolean; new_1rm: boolean }> {
+export async function upsertPRForSet(setId: string): Promise<{
+  new_weight?: boolean;
+  new_1rm?: boolean;
+  new_volume?: boolean;
+  club_total_1rm?: number;       // sum of best Bench + Deadlift + Back Squat 1RM
+  club_reached_1000?: boolean;   // true if just crossed >= 1000
+}> {
   const { data, error } = await supabase.rpc('upsert_pr_for_set', { p_set_id: setId });
   if (error) throw error;
-  return (data ?? { new_weight: false, new_1rm: false }) as any;
+  // Return with safe defaults so callers don't crash if fields are missing
+  return ({
+    new_weight: false,
+    new_1rm: false,
+    new_volume: false,
+    ...((data ?? {}) as any),
+  });
 }
 
 export async function recomputePRs(): Promise<void> {
+  // Try server-side recompute first
   const { error } = await supabase.rpc('recompute_prs');
+  if (!error) return;
+  // Fallback: client-side recompute if server function fails (e.g., stale SQL)
+  await recomputePRsClient();
+}
+
+async function recomputePRsClient(): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Fetch all sets for this user needed for PRs computation
+  const { data: sets, error } = await supabase
+    .from('sets')
+    .select('id, exercise_id, weight, reps, failed, performed_at, created_at')
+    .eq('user_id', user.id);
   if (error) throw error;
+
+  type PRVal = { value: number; dateISO: string; setId: string };
+  const weightPR: Record<string, PRVal> = {};
+  const oneRMPR: Record<string, PRVal> = {};
+  // For volume, compute per local day per exercise, then take max
+  const volumeByExByDay: Record<string, Record<string, number>> = {};
+
+  const toLocalDayKey = (iso: string) => new Date(iso).toLocaleDateString('en-CA'); // YYYY-MM-DD
+
+  for (const r of (sets ?? []) as any[]) {
+    const ok = !r.failed;
+    const when = r.performed_at ?? r.created_at;
+    const exId = r.exercise_id as string;
+    if (!when || !exId) continue;
+
+    if (ok) {
+      // Weight PR
+      const w = Number(r.weight);
+      if (!isNaN(w)) {
+        const cur = weightPR[exId];
+        if (!cur || w > cur.value) weightPR[exId] = { value: w, dateISO: when, setId: r.id };
+      }
+      // 1RM PR (Epley)
+      const reps = Number(r.reps);
+      const w1rm = (!isNaN(reps) && !isNaN(Number(r.weight))) ? estimate1RM(Number(r.weight), reps) : NaN;
+      if (!isNaN(w1rm)) {
+        const cur = oneRMPR[exId];
+        if (!cur || w1rm > cur.value) oneRMPR[exId] = { value: w1rm, dateISO: when, setId: r.id };
+      }
+      // Volume per day per exercise
+      const vol = Number(r.weight) * Number(r.reps);
+      if (!isNaN(vol)) {
+        const day = toLocalDayKey(when);
+        volumeByExByDay[exId] = volumeByExByDay[exId] || {};
+        volumeByExByDay[exId][day] = (volumeByExByDay[exId][day] || 0) + vol;
+      }
+    }
+  }
+
+  // Reduce volume to PR per exercise
+  const volumePR: Record<string, PRVal> = {};
+  // To provide a representative set_id for volume PR (per-day aggregate),
+  // pick the set with the highest weight*reps on that best day.
+  for (const [exId, byDay] of Object.entries(volumeByExByDay)) {
+    let bestDay: { day: string; total: number } | null = null;
+    for (const [day, total] of Object.entries(byDay)) {
+      const val = Number(total);
+      if (!bestDay || val > bestDay.total) bestDay = { day, total: val };
+    }
+    if (!bestDay) continue;
+    const dayISO = bestDay.day; // YYYY-MM-DD
+    const start = new Date(`${dayISO}T00:00:00`).toISOString();
+    const end = new Date(`${dayISO}T00:00:00`);
+    end.setDate(end.getDate() + 1);
+    const endISO = end.toISOString();
+    // Among sets for that day+exercise, pick set with max weight*reps
+    let bestSet: { id: string; when: string; score: number } | null = null;
+    for (const r of (sets ?? []) as any[]) {
+      if ((r.exercise_id as string) !== exId) continue;
+      const when = r.performed_at ?? r.created_at;
+      if (!when || when < start || when >= endISO) continue;
+      if (r.failed) continue;
+      const score = Number(r.weight) * Number(r.reps);
+      if (isNaN(score)) continue;
+      if (!bestSet || score > bestSet.score) bestSet = { id: r.id, when, score };
+    }
+    if (bestSet) {
+      volumePR[exId] = { value: bestDay.total, dateISO: new Date(`${dayISO}T00:00:00`).toISOString(), setId: bestSet.id };
+    }
+  }
+
+  // Prepare rows for personal_records; rebuild fully to avoid duplication
+  const rows: any[] = [];
+  const addRow = (exercise_id: string, metric: 'weight' | '1rm' | 'volume', pr?: PRVal) => {
+    if (!pr) return;
+    rows.push({
+      user_id: user.id,
+      exercise_id,
+      metric,
+      value: pr.value,
+      performed_at: pr.dateISO,
+      set_id: pr.setId,
+    });
+  };
+  const exerciseIds = new Set<string>([
+    ...Object.keys(weightPR),
+    ...Object.keys(oneRMPR),
+    ...Object.keys(volumePR),
+  ]);
+  for (const exId of exerciseIds) {
+    addRow(exId, 'weight', weightPR[exId]);
+    addRow(exId, '1rm', oneRMPR[exId]);
+    addRow(exId, 'volume', volumePR[exId]);
+  }
+
+  // Replace personal_records for this user
+  const { error: delErr } = await supabase.from('personal_records').delete().eq('user_id', user.id);
+  if (delErr) throw delErr;
+  if (rows.length) {
+    const { error: insErr } = await supabase.from('personal_records').insert(rows);
+    if (insErr) throw insErr;
+  }
 }
 
 // Fetch precomputed PRs for the current user, both metrics

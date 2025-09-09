@@ -110,15 +110,19 @@ export default function Log() {
         performed_at: s.performed_at ?? undefined,
       });
 
-      // Check for PRs
+      // Check for PRs and 1000 lb club progress
       try {
         const res = await upsertPRForSet(inserted.id);
-        if (res?.new_weight || res?.new_1rm) {
+        if (res?.new_weight || res?.new_1rm || (res as any)?.new_volume) {
           const exName = selectedExercise?.name ?? 'Exercise';
           const parts: string[] = [];
           if (res.new_weight) parts.push('Heaviest');
           if (res.new_1rm) parts.push('Best 1RM');
+          if ((res as any).new_volume) parts.push('Best Volume');
           alert(`🎉 New PR (${parts.join(' & ')}): ${exName}`);
+        }
+        if ((res as any)?.club_reached_1000) {
+          alert('💯 Congrats! You just reached the 1000 lb club!');
         }
       } catch (prError) {
         console.error('Failed to check PRs:', prError);
