@@ -1,7 +1,7 @@
 // src/routes/Charts.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getExercises } from '../lib/api';
+import { getExercises, getPRs } from '../lib/api';
 import { estimate1RM } from '../utils/oneRM';
 import { formatNumber } from '../utils/format';
 import {
@@ -25,6 +25,13 @@ type Point = {
   oneRM: number | null;     // estimated 1RM (Epley)
   volume: number;           // sum(weight * reps) successful sets
   trend?: number;           // trend line value based on previous 4 weeks
+};
+
+type RPEPoint = {
+  dateISO: string;
+  dateLabel: string;
+  score: number;            // aggregated RPE score across all exercises for the day
+  badges: string;           // "BS · P · DL" style label
 };
 
 function formatDDMMYYYY(iso: string | number | Date) {
@@ -130,6 +137,10 @@ export default function Charts() {
   const [data, setData] = useState<Point[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Daily RPE score data (all exercises aggregated)
+  const [rpeData, setRpeData] = useState<RPEPoint[]>([]);
+  const [rpeLoading, setRpeLoading] = useState(false);
+
   const compact = useCompact();
   const xTicks = useMemo(() => {
     if (!data.length) return [];
@@ -218,6 +229,86 @@ export default function Charts() {
   }, [exerciseId, timeframe]);
 
   const exName = useMemo(() => exercises.find(e => e.id === exerciseId)?.name ?? '—', [exercises, exerciseId]);
+
+  // Compute daily RPE score across all exercises, respecting timeframe
+  useEffect(() => {
+    const run = async () => {
+      setRpeLoading(true);
+      try {
+        // Map exerciseId -> best 1RM PR for normalization
+        const prList = await getPRs();
+        const oneRMByExercise = new Map<string, number>();
+        for (const pr of prList) {
+          if (pr.oneRMPR?.value) oneRMByExercise.set(pr.exerciseId, Number(pr.oneRMPR.value));
+        }
+
+        const { data: rows, error } = await supabase
+          .from('sets')
+          .select('exercise_id, weight, reps, rpe, failed, performed_at, created_at, exercise:exercises(name, short_name)')
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+
+        const start = startDateFor(timeframe); // Date | null
+        const byDay = new Map<string, number>(); // YYYY-MM-DD -> score
+        const labelsByDay = new Map<string, Set<string>>(); // YYYY-MM-DD -> set of labels
+
+        for (const r of (rows ?? []) as any[]) {
+          if (r.failed) continue;
+          const performedISO = r.performed_at ?? r.created_at;
+          const performed = new Date(performedISO);
+          if (start && performed < start) continue;
+
+          const key = `${performed.getFullYear()}-${String(performed.getMonth() + 1).padStart(2, '0')}-${String(performed.getDate()).padStart(2, '0')}`;
+
+          const reps = Number(r.reps) || 0;
+          const weight = Number(r.weight) || 0;
+          const rpe = r.rpe == null ? 5 : Number(r.rpe); // default to 5 if missing
+
+          // Normalize by exercise-specific best 1RM if available
+          const pr1rm = oneRMByExercise.get(r.exercise_id);
+          const relative = pr1rm && pr1rm > 0 ? weight / pr1rm : 1 / (1 + reps / 30); // fallback to set's own intensity proxy
+
+          // RPE factor (0..1), emphasize harder sets while not zeroing moderate work
+          const rpeFactor = Math.max(0, Math.min(1, rpe / 10));
+
+          const setScore = reps * relative * rpeFactor;
+          byDay.set(key, (byDay.get(key) || 0) + setScore);
+
+          // collect exercise label for the badges
+          const label = r.exercise?.short_name ?? r.exercise?.name ?? '—';
+          const setForDay = labelsByDay.get(key) ?? new Set<string>();
+          setForDay.add(label);
+          labelsByDay.set(key, setForDay);
+        }
+
+        const points = Array.from(byDay.entries())
+          .map(([key, val]) => {
+            const [y, m, d] = key.split('-').map(Number);
+            const dt = new Date(y, m - 1, d);
+            const labels = Array.from(labelsByDay.get(key) ?? new Set<string>()).sort();
+            return {
+              dateISO: dt.toISOString(),
+              dateLabel: dt.toLocaleDateString('en-GB'),
+              score: val,
+              badges: labels.join(' · '),
+            } as RPEPoint;
+          })
+          .sort((a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime());
+
+        setRpeData(points);
+      } finally {
+        setRpeLoading(false);
+      }
+    };
+    run();
+  }, [timeframe]);
+
+  const rpeXTicks = useMemo(() => {
+    if (!rpeData.length) return [];
+    const maxTicks = compact ? 5 : 8;
+    const step = Math.max(1, Math.ceil(rpeData.length / maxTicks));
+    return rpeData.filter((_, i) => i % step === 0).map(p => p.dateLabel);
+  }, [rpeData, compact]);
 
   return (
     <div className="page-container">
@@ -346,6 +437,45 @@ export default function Charts() {
                 hide={!showTrend}
                 isAnimationActive={false}
                 strokeDasharray="5 5"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Daily RPE score (all exercises) */}
+      <div className="chart-card">
+        <h3 className="chart-title">Daily RPE Score</h3>
+        {rpeLoading ? (
+          <p>Loading…</p>
+        ) : rpeData.length === 0 ? (
+          <p>No data for this selection.</p>
+        ) : (
+          <ResponsiveContainer>
+            <LineChart data={rpeData} margin={{ top: 8, right: 0, left: 4, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="dateLabel"
+                ticks={rpeXTicks}
+                tick={{ fontSize: compact ? 11 : 12 }}
+              />
+              <YAxis allowDecimals={false} hide={true} />
+              <Tooltip 
+                formatter={(v:any) => [formatNumber(Number(v)), 'RPE score']}
+                labelFormatter={(label: any, payload: any[]) => {
+                  const badges = payload?.[0]?.payload?.badges ?? '';
+                  return badges ? `${label} — ${badges}` : label;
+                }}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="score"
+                name="RPE score"
+                stroke="#6366f1"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>
