@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import useSessionState from '../hooks/useSessionState';
 
 function parseLocalizedDecimal(s: string): number | null {
   if (s.trim() === '') return null;
   const n = Number(s.replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 }
+
+const STORAGE_BASE_KEY = 'log:set-editor';
 
 export default function SetEditor({
   onAdd,
@@ -13,10 +15,10 @@ export default function SetEditor({
   onAdd: (s: { weight: number; reps: number; rpe?: number|null; failed?: boolean; performed_at?: string }) => void;
   units: 'kg'|'lb';
 }) {
-  const [weightInput, setWeightInput] = useState('');
-  const [reps, setReps] = useState(5);
-  const [rpe, setRpe] = useState<number>(5);
-  const [failed, setFailed] = useState(false);
+  const [weightInput, setWeightInput] = useSessionState<string>(`${STORAGE_BASE_KEY}:weight:${units}`, '');
+  const [reps, setReps] = useSessionState<number>(`${STORAGE_BASE_KEY}:reps:${units}`, 5);
+  const [rpe, setRpe] = useSessionState<number>(`${STORAGE_BASE_KEY}:rpe:${units}`, 5);
+  const [failed, setFailed] = useSessionState<boolean>(`${STORAGE_BASE_KEY}:failed`, false);
 
   const submit = () => {
     const parsed = parseLocalizedDecimal(weightInput);

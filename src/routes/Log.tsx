@@ -5,6 +5,7 @@ import EditSetModal from '../components/EditSetModal';
 import { addSetBare, listSetsByDay, updateSet, deleteSet, getExercises, upsertPRForSet, recomputePRs, getPRs } from '../lib/api';
 import { formatNumber } from '../utils/format';
 import type { Exercise } from '../types';
+import useSessionState from '../hooks/useSessionState';
 import { detectImprovedMetrics, computeThousandLbProgress, type ExercisePRSummary, type PRMetric } from '../utils/prs';
 // Units fixed to kg
 
@@ -63,7 +64,7 @@ const groupSetsByExercise = (sets: SetData[]): GroupedExercise[] => {
 
 export default function Log() {
 
-  const [exerciseId, setExerciseId] = useState<string | null>(null);
+  const [exerciseId, setExerciseId] = useSessionState<string | null>('log:exerciseId', null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [sets, setSets] = useState<SetData[]>([]);
   const [prs, setPRs] = useState<ExercisePRSummary[]>([]);

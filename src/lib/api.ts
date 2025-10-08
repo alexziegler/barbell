@@ -302,7 +302,7 @@ export async function listRecentDays(limit = 30) {
 
 // Return a mapping of day ("YYYY-MM-DD") -> array of distinct exercise labels (short_name || name)
 export async function listExerciseBadgesForDays(days: string[]) {
-  if (!days.length) return {} as Record<string, string[]>;
+  if (!days.length) return {} as Record<string, { labels: string[]; exerciseIds: string[] }>;
   // Compute a single time window to fetch once
   const sorted = [...days].sort();
   const startISO = localDayStartISO(sorted[0]);
@@ -310,21 +310,28 @@ export async function listExerciseBadgesForDays(days: string[]) {
 
   const { data, error } = await supabase
     .from('sets')
-    .select('performed_at, exercise:exercises(name, short_name)')
+    .select('performed_at, exercise_id, exercise:exercises(name, short_name)')
     .gte('performed_at', startISO)
     .lt('performed_at', endISO);
   if (error) throw error;
 
-  const map: Record<string, Set<string>> = {};
+  const labelMap: Record<string, Set<string>> = {};
+  const idMap: Record<string, Set<string>> = {};
   for (const row of (data ?? []) as any[]) {
     const d = new Date(row.performed_at);
     const key = d.toLocaleDateString("en-CA"); // YYYY-MM-DD in local tz
     const label = row.exercise?.short_name ?? row.exercise?.name ?? "—";
-    if (!map[key]) map[key] = new Set<string>();
-    map[key].add(label);
+    if (!labelMap[key]) labelMap[key] = new Set<string>();
+    if (!idMap[key]) idMap[key] = new Set<string>();
+    labelMap[key].add(label);
+    if (row.exercise_id) idMap[key].add(row.exercise_id as string);
   }
 
-  const out: Record<string, string[]> = {};
-  for (const [k, v] of Object.entries(map)) out[k] = Array.from(v).sort();
+  const out: Record<string, { labels: string[]; exerciseIds: string[] }> = {};
+  for (const day of Object.keys({ ...labelMap, ...idMap })) {
+    const labels = Array.from(labelMap[day] ?? []).sort();
+    const exerciseIds = Array.from(idMap[day] ?? []).sort();
+    out[day] = { labels, exerciseIds };
+  }
   return out;
 }

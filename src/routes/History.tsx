@@ -19,6 +19,7 @@ function formatMonthYear(isoLike: string | Date) {
 }
 
 type DayKey = string; // "YYYY-MM-DD"
+type DaySummary = { labels: string[]; exerciseIds: string[] };
 
 export default function History() {
   // Days & sets
@@ -27,7 +28,7 @@ export default function History() {
 
   // Exercises (for badges and editor dropdown)
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [badgesByDay, setBadgesByDay] = useState<Record<DayKey, string[]>>({});
+  const [badgesByDay, setBadgesByDay] = useState<Record<DayKey, DaySummary>>({});
 
   // Personal Records
   const [prs, setPRs] = useState<ExercisePRSummary[]>([]);
@@ -69,19 +70,14 @@ export default function History() {
       return;
     }
     const sets = await listSetsByDay(day);
-    setExpanded((cur) => ({ ...cur, [day]: sets }));
+    setExpanded((cur) => ({ ...cur, [day]: applyFilters(sets) }));
   };
 
   // Filter logic applied per-day (client-side)
   const applyFilters = (sets: any[]) => {
     if (!sets?.length) return sets;
-
-    const wantExerciseId = filterExerciseId || null;
-
-    return sets.filter((s) => {
-      const matchesExercise = wantExerciseId ? s.exercise_id === wantExerciseId : true;
-      return matchesExercise;
-    });
+    if (!filterExerciseId) return sets;
+    return sets.filter((s) => s.exercise_id === filterExerciseId);
   };
 
   // Helpers
@@ -89,16 +85,29 @@ export default function History() {
     const sets = await listSetsByDay(day);
     setExpanded((cur) => ({ ...cur, [day]: applyFilters(sets) }));
     // update badges for this day from the fresh sets
-    const labels = Array.from(
-      new Set(
-        sets.map((s: any) => {
-          const ex = exMap.get(s.exercise_id);
-          return ex?.short ?? ex?.name ?? "—";
-        })
-      )
-    ).sort();
-    setBadgesByDay((cur) => ({ ...cur, [day]: labels }));
+    const labelSet = new Set<string>();
+    const idSet = new Set<string>();
+    for (const s of sets) {
+      const ex = exMap.get(s.exercise_id);
+      labelSet.add(ex?.short ?? ex?.name ?? "—");
+      idSet.add(s.exercise_id);
+    }
+    const labels = Array.from(labelSet).sort();
+    const exerciseIds = Array.from(idSet).sort();
+    setBadgesByDay((cur) => ({ ...cur, [day]: { labels, exerciseIds } }));
   };
+
+  const visibleDays = useMemo(() => {
+    if (!filterExerciseId) return days;
+    return days.filter((day) => {
+      const summary = badgesByDay[day];
+      if (summary?.exerciseIds.includes(filterExerciseId)) return true;
+      const daySets = expanded[day];
+      return !!daySets?.some((s) => s.exercise_id === filterExerciseId);
+    });
+  }, [days, badgesByDay, expanded, filterExerciseId]);
+
+  const hasNoMatches = filterExerciseId !== "" && visibleDays.length === 0;
 
   // Re-apply filters when filter state changes
   useEffect(() => {
@@ -287,58 +296,73 @@ export default function History() {
       </div>
 
       {/* Day list */}
-      {days.map((day, index) => {
-        const daySets = expanded[day];
-        const badges = badgesByDay[day] ?? []; // ← use precomputed badges even when collapsed
-        
-        // Check if we need to show a month header
-        const showMonthHeader = index === 0 || 
-          new Date(day).getMonth() !== new Date(days[index - 1]).getMonth() ||
-          new Date(day).getFullYear() !== new Date(days[index - 1]).getFullYear();
+      {hasNoMatches ? (
+        <div className="empty-state">
+          <div className="empty-state__icon">🔍</div>
+          <div className="empty-state__title">No sets logged for that exercise</div>
+          <div className="empty-state__subtitle">Try another exercise or clear the filter.</div>
+        </div>
+      ) : (
+        visibleDays.map((day, index) => {
+          const daySets = expanded[day];
+          const summary = badgesByDay[day];
+          const badges = summary?.labels ?? [];
+          
+          const prevDay = visibleDays[index - 1];
+          const showMonthHeader = index === 0 ||
+            !prevDay ||
+            new Date(day).getMonth() !== new Date(prevDay).getMonth() ||
+            new Date(day).getFullYear() !== new Date(prevDay).getFullYear();
 
-        return (
-          <div key={day}>
-            {/* Month header */}
-            {showMonthHeader && (
-              <div className="month-header">
-                <h3>
-                  {formatMonthYear(day)}
-                </h3>
-              </div>
-            )}
-            
-            {/* Day card */}
-            <div className="card">
-              <div className="row justify-between items-center">
-                <div className="day-header">
-                  <strong>{formatDate(day)}</strong>
-                  {badges.length > 0 && (
-                    <>
-                      {" • "}
-                      {badges.map((b) => (
-                        <span key={b} className="tag">{b}</span>
-                      ))}
-                    </>
-                  )}
-                </div>
-                <button className="ghost btn-icon" onClick={() => toggleDay(day)} aria-label={daySets ? 'Collapse day' : 'Expand day'}>
-                  {daySets ? '▲' : '▼'}
-                </button>
-              </div>
-              {daySets && (
-                <div className="mt-md">
-                  <GroupedSets
-                    day={day}
-                    sets={daySets}
-                    exercises={exercises}
-                    onEdit={(s) => setEditingSet({ day, set: s })}
-                  />
+          return (
+            <div key={day}>
+              {/* Month header */}
+              {showMonthHeader && (
+                <div className="month-header">
+                  <h3>
+                    {formatMonthYear(day)}
+                  </h3>
                 </div>
               )}
+              
+              {/* Day card */}
+              <div className="card">
+                <div className="row justify-between items-center">
+                  <div className="day-header">
+                    <strong>{formatDate(day)}</strong>
+                    {badges.length > 0 && (
+                      <>
+                        {" • "}
+                        {badges.map((b) => (
+                          <span key={b} className="tag">{b}</span>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  <button className="ghost btn-icon" onClick={() => toggleDay(day)} aria-label={daySets ? 'Collapse day' : 'Expand day'}>
+                    {daySets ? '▲' : '▼'}
+                  </button>
+                </div>
+                {daySets && daySets.length > 0 && (
+                  <div className="mt-md">
+                    <GroupedSets
+                      day={day}
+                      sets={daySets}
+                      exercises={exercises}
+                      onEdit={(s) => setEditingSet({ day, set: s })}
+                    />
+                  </div>
+                )}
+                {daySets && daySets.length === 0 && (
+                  <div className="empty-state empty-state--small">
+                    <div className="empty-state__title">No sets match this filter</div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })
+      )}
 
       {/* Edit Set Modal for History */}
       <EditSetModal
