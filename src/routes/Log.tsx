@@ -2,9 +2,10 @@ import { useEffect, useState, useMemo } from 'react';
 import ExercisePicker from '../components/ExercisePicker';
 import SetEditor from '../components/SetEditor';
 import EditSetModal from '../components/EditSetModal';
-import { addSetBare, listSetsByDay, updateSet, deleteSet, getExercises, upsertPRForSet, recomputePRs } from '../lib/api';
+import { addSetBare, listSetsByDay, updateSet, deleteSet, getExercises, upsertPRForSet, recomputePRs, getPRs } from '../lib/api';
 import { formatNumber } from '../utils/format';
 import type { Exercise } from '../types';
+import { detectImprovedMetrics, computeThousandLbProgress, type ExercisePRSummary, type PRMetric } from '../utils/prs';
 // Units fixed to kg
 
 // Types
@@ -32,6 +33,13 @@ interface SetPatch {
   performed_at?: string;
 }
 
+const METRIC_ORDER: PRMetric[] = ['weight', '1rm', 'volume'];
+const METRIC_LABEL: Record<PRMetric, string> = {
+  weight: 'Heaviest',
+  '1rm': 'Best 1RM',
+  volume: 'Best Volume',
+};
+
 // Helper functions
 const getTodayDate = (): string => {
   return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
@@ -58,6 +66,7 @@ export default function Log() {
   const [exerciseId, setExerciseId] = useState<string | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [sets, setSets] = useState<SetData[]>([]);
+  const [prs, setPRs] = useState<ExercisePRSummary[]>([]);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editingSet = useMemo(() => sets.find(s => s.id === editingSetId) || null, [editingSetId, sets]);
@@ -74,6 +83,12 @@ export default function Log() {
       console.error('Failed to load exercises:', err);
       setError('Failed to load exercises');
     }); 
+  }, []);
+
+  useEffect(() => {
+    getPRs().then(setPRs).catch(err => {
+      console.error('Failed to load PRs:', err);
+    });
   }, []);
 
   useEffect(() => { 
@@ -101,6 +116,9 @@ export default function Log() {
     
     setError(null);
     try {
+      const prevPR = prs.find(pr => pr.exerciseId === exerciseId) ?? null;
+      const prevClub = computeThousandLbProgress(prs);
+
       const inserted = await addSetBare({
         exercise_id: exerciseId,
         weight: s.weight,
@@ -110,23 +128,46 @@ export default function Log() {
         performed_at: s.performed_at ?? undefined,
       });
 
-      // Check for PRs and 1000 lb club progress
+      let prResponse: Awaited<ReturnType<typeof upsertPRForSet>> | null = null;
       try {
-        const res = await upsertPRForSet(inserted.id);
-        if (res?.new_weight || res?.new_1rm || (res as any)?.new_volume) {
-          const exName = selectedExercise?.name ?? 'Exercise';
-          const parts: string[] = [];
-          if (res.new_weight) parts.push('Heaviest');
-          if (res.new_1rm) parts.push('Best 1RM');
-          if ((res as any).new_volume) parts.push('Best Volume');
-          alert(`🎉 New PR (${parts.join(' & ')}): ${exName}`);
-        }
-        if ((res as any)?.club_reached_1000) {
-          alert('💯 Congrats! You just reached the 1000 lb club!');
-        }
+        prResponse = await upsertPRForSet(inserted.id);
       } catch (prError) {
         console.error('Failed to check PRs:', prError);
-        // Don't show error to user for PR check failures
+      }
+
+      try {
+        await recomputePRs();
+      } catch (recomputeError) {
+        console.error('Failed to recompute PRs after insert:', recomputeError);
+      }
+
+      let latestPRs = prs;
+      try {
+        latestPRs = await getPRs();
+        setPRs(latestPRs);
+      } catch (refreshError) {
+        console.error('Failed to refresh PRs after insert:', refreshError);
+      }
+
+      const nextPR = latestPRs.find(pr => pr.exerciseId === exerciseId) ?? null;
+      const metricsHit = new Set<PRMetric>();
+
+      if (prResponse?.new_weight) metricsHit.add('weight');
+      if (prResponse?.new_1rm) metricsHit.add('1rm');
+      if (prResponse?.new_volume) metricsHit.add('volume');
+
+      detectImprovedMetrics(prevPR, nextPR).forEach(metric => metricsHit.add(metric));
+
+      if (metricsHit.size) {
+        const exName = selectedExercise?.name ?? 'Exercise';
+        const labels = METRIC_ORDER.filter(metric => metricsHit.has(metric)).map(metric => METRIC_LABEL[metric]);
+        alert(`🎉 New PR (${labels.join(' & ')}): ${exName}`);
+      }
+
+      const nextClub = computeThousandLbProgress(latestPRs);
+      const reachedClub = (!prevClub.reachedTarget && nextClub.reachedTarget) || !!prResponse?.club_reached_1000;
+      if (reachedClub) {
+        alert('💯 Congrats! You just reached the 1000 lb club!');
       }
 
       refreshSets();
@@ -142,6 +183,12 @@ export default function Log() {
       await updateSet(id, patch);
       // Ensure PRs reflect the edited set
       await recomputePRs();
+      try {
+        const latestPRs = await getPRs();
+        setPRs(latestPRs);
+      } catch (refreshError) {
+        console.error('Failed to refresh PRs after update:', refreshError);
+      }
       refreshSets();
       setEditingSetId(null);
     } catch (err) {
@@ -158,6 +205,12 @@ export default function Log() {
       await deleteSet(id);
       // Deletions can change PRs
       await recomputePRs();
+      try {
+        const latestPRs = await getPRs();
+        setPRs(latestPRs);
+      } catch (refreshError) {
+        console.error('Failed to refresh PRs after delete:', refreshError);
+      }
       refreshSets();
     } catch (err) {
       console.error('Failed to delete set:', err);

@@ -3,6 +3,7 @@ import { getExercises, listRecentDays, listSetsByDay, updateSet, deleteSet, list
 import { formatNumber } from "../utils/format";
 import EditSetModal from "../components/EditSetModal";
 import type { Exercise } from "../types";
+import { computeThousandLbProgress, THOUSAND_LB_TARGET_KG, type ExercisePRSummary } from "../utils/prs";
 
 /** DD/MM/YYYY */
 function formatDate(isoLike: string | Date) {
@@ -29,13 +30,7 @@ export default function History() {
   const [badgesByDay, setBadgesByDay] = useState<Record<DayKey, string[]>>({});
 
   // Personal Records
-  const [prs, setPRs] = useState<Array<{
-    exerciseId: string;
-    exerciseName: string;
-    weightPR: { value: number; dateISO: string } | null;
-    oneRMPR: { value: number; dateISO: string } | null;
-    volumePR: { value: number; dateISO: string } | null;
-  }>>([]);
+  const [prs, setPRs] = useState<ExercisePRSummary[]>([]);
   const [prsExpanded, setPRsExpanded] = useState(false);
   const [prsMetric, setPRsMetric] = useState<'weight' | '1rm' | 'volume'>('weight');
   const [clubExpanded, setClubExpanded] = useState(false);
@@ -115,58 +110,7 @@ export default function History() {
   }, [filterExerciseId]);
 
   // 1000 lb club progress (Bench, Deadlift, Back Squat based on 1RM PRs)
-  const thousandLb = useMemo(() => {
-    if (!prs?.length) {
-      return {
-        benchKg: null as number | null,
-        deadliftKg: null as number | null,
-        squatKg: null as number | null,
-        totalKg: 0,
-        percent: 0,
-      };
-    }
-
-    const lower = (s: string) => s.toLowerCase();
-
-    // Helper to pick best matching exercise by name rules
-    function pickPR(match: (name: string) => boolean, exclude?: (name: string) => boolean) {
-      const candidates = prs
-        .filter(p => !!p.oneRMPR)
-        .filter(p => match(lower(p.exerciseName)))
-        .filter(p => !exclude || !exclude(lower(p.exerciseName)));
-      if (!candidates.length) return null as { value: number; dateISO: string } | null;
-      // pick highest 1RM among candidates
-      return candidates.reduce((best, cur) => {
-        if (!best || (cur.oneRMPR!.value > best.value)) return cur.oneRMPR!;
-        return best;
-      }, null as { value: number; dateISO: string } | null);
-    }
-
-    // Bench: name includes 'bench'
-    const bench = pickPR(name => name.includes('bench'));
-
-    // Deadlift: includes 'deadlift' or 'dead lift'
-    const deadlift = pickPR(name => name.includes('deadlift') || name.includes('dead lift'));
-
-    // Squat: prefer names including 'back' + 'squat'; else any 'squat' that is not front/overhead
-    const squatPreferred = pickPR(name => name.includes('squat') && name.includes('back'));
-    const squatFallback = squatPreferred ?? pickPR(
-      name => name.includes('squat'),
-      name => name.includes('front') || name.includes('overhead') || name.includes('zercher')
-    );
-    const squat = squatFallback;
-
-    const benchKg = bench?.value ?? null;
-    const deadliftKg = deadlift?.value ?? null;
-    const squatKg = squat?.value ?? null;
-
-    const partials = [benchKg, deadliftKg, squatKg].filter((v): v is number => typeof v === 'number');
-    const totalKg = partials.reduce((a, b) => a + b, 0);
-    const targetKg = 1000 * 0.45359237; // 1000 lb in kg
-    const percent = Math.max(0, Math.min(100, (totalKg / targetKg) * 100));
-
-    return { benchKg, deadliftKg, squatKg, totalKg, percent };
-  }, [prs]);
+  const thousandLb = useMemo(() => computeThousandLbProgress(prs), [prs]);
 
   return (
     <div className="page-container">
@@ -299,15 +243,13 @@ export default function History() {
             <div className="mb-base">
               {/* Progress bar */}
               {(() => {
-                const targetKg = 1000 * 0.45359237;
                 const pct = thousandLb.percent;
                 return (
                   <div>
                     <div className="row justify-between items-center mb-sm">
                       <div className="text-small opacity-70">Progress</div>
                       <div className="text-small">
-                        {formatNumber(thousandLb.totalKg)} / {formatNumber(targetKg)} kg
-                        {" "}
+                        {formatNumber(thousandLb.totalKg)} / {formatNumber(THOUSAND_LB_TARGET_KG)} kg{" "}
                         <span className="opacity-60">({formatNumber(Number(pct))}%)</span>
                       </div>
                     </div>

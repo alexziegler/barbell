@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import type { Exercise, SetEntry } from '../types';
 import { estimate1RM } from '../utils/oneRM';
+import type { ExercisePRSummary } from '../utils/prs';
 
 function localDayStartISO(dayISO: string) {
   // dayISO = 'YYYY-MM-DD' in local tz
@@ -181,13 +182,7 @@ async function recomputePRsClient(): Promise<void> {
 }
 
 // Fetch precomputed PRs for the current user, both metrics
-export async function getPRs(): Promise<Array<{
-  exerciseId: string;
-  exerciseName: string;
-  weightPR: { value: number; dateISO: string } | null;
-  oneRMPR: { value: number; dateISO: string } | null;
-  volumePR: { value: number; dateISO: string } | null;
-}>> {
+export async function getPRs(): Promise<ExercisePRSummary[]> {
   const { data, error } = await supabase
     .from('personal_records')
     .select('exercise_id, metric, value, performed_at, exercise:exercises(name)');
