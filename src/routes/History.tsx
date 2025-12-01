@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Trophy, Medal, Dumbbell, Search, ChevronDown, ChevronUp, Edit3, XOctagon } from "lucide-react";
 import { getExercises, listRecentDays, listSetsByDay, updateSet, deleteSet, listExerciseBadgesForDays, getPRs, recomputePRs } from "../lib/api";
 import { formatNumber } from "../utils/format";
 import EditSetModal from "../components/EditSetModal";
@@ -120,6 +121,7 @@ export default function History() {
 
   // 1000 lb club progress (Bench, Deadlift, Back Squat based on 1RM PRs)
   const thousandLb = useMemo(() => computeThousandLbProgress(prs), [prs]);
+  const thousandLbSurplusKg = Math.max(0, thousandLb.totalKg - THOUSAND_LB_TARGET_KG);
 
   return (
     <div className="page-container">
@@ -152,7 +154,8 @@ export default function History() {
       <div className="card">
         <div className="row justify-between items-center">
           <h3 className="page-title mb-0">
-            🏆 PRs
+            <Trophy size={18} className="text-primary" style={{ marginRight: 8 }} />
+            PRs
             {prs.length > 0 && prsExpanded && (
               <span className="page-subtitle">
                 ({prs.filter(pr => (
@@ -166,8 +169,9 @@ export default function History() {
           <button 
             className="ghost btn-icon" 
             onClick={() => setPRsExpanded(!prsExpanded)}
+            aria-label={prsExpanded ? 'Collapse PRs' : 'Expand PRs'}
           >
-            {prsExpanded ? '▲' : '▼'}
+            {prsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
         
@@ -176,7 +180,7 @@ export default function History() {
             {prs.length > 0 ? (
               <>
                 {/* Metric Toggle */}
-                <div className="row justify-center mb-base">
+                <div className="row justify-center mb-base mt-lg">
                   <button
                     className={`btn-toggle ${prsMetric === 'weight' ? 'is-active' : ''}`}
                     onClick={() => setPRsMetric('weight')}
@@ -227,7 +231,9 @@ export default function History() {
               </>
             ) : (
               <div className="empty-state">
-                <div className="empty-state__icon">🏋️</div>
+                <div className="empty-state__icon text-primary">
+                  <Dumbbell size={40} />
+                </div>
                 <div className="empty-state__title">No personal records yet</div>
                 <div className="empty-state__subtitle">Start logging sets to see your PRs here!</div>
               </div>
@@ -239,12 +245,16 @@ export default function History() {
       {/* 1000 lb Club Progress */}
       <div className="card">
         <div className="row justify-between items-center">
-          <h3 className="page-title mb-0">🏅 1000 lb Club</h3>
+          <h3 className="page-title mb-0">
+            <Medal size={18} className="text-primary" style={{ marginRight: 8 }} />
+            1000 lb Club
+          </h3>
           <button
             className="ghost btn-icon"
             onClick={() => setClubExpanded(!clubExpanded)}
+            aria-label={clubExpanded ? 'Collapse 1000 lb Club' : 'Expand 1000 lb Club'}
           >
-            {clubExpanded ? '▲' : '▼'}
+            {clubExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
         {clubExpanded && (
@@ -255,11 +265,16 @@ export default function History() {
                 const pct = thousandLb.percent;
                 return (
                   <div>
-                    <div className="row justify-between items-center mb-sm">
+                    <div className="row justify-between items-center mb-sm mt-lg">
                       <div className="text-small opacity-70">Progress</div>
                       <div className="text-small">
                         {formatNumber(thousandLb.totalKg)} / {formatNumber(THOUSAND_LB_TARGET_KG)} kg{" "}
                         <span className="opacity-60">({formatNumber(Number(pct))}%)</span>
+                        {thousandLb.reachedTarget && thousandLbSurplusKg > 0 && (
+                          <span style={{ marginLeft: 8, color: "var(--color-success, #16a34a)" }}>
+                            +{formatNumber(thousandLbSurplusKg)} kg over
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div style={{ background: 'var(--border-color, #e5e7eb)', height: 10, borderRadius: 6, overflow: 'hidden' }}>
@@ -298,7 +313,9 @@ export default function History() {
       {/* Day list */}
       {hasNoMatches ? (
         <div className="empty-state">
-          <div className="empty-state__icon">🔍</div>
+          <div className="empty-state__icon text-primary">
+            <Search size={40} />
+          </div>
           <div className="empty-state__title">No sets logged for that exercise</div>
           <div className="empty-state__subtitle">Try another exercise or clear the filter.</div>
         </div>
@@ -340,11 +357,11 @@ export default function History() {
                     )}
                   </div>
                   <button className="ghost btn-icon" onClick={() => toggleDay(day)} aria-label={daySets ? 'Collapse day' : 'Expand day'}>
-                    {daySets ? '▲' : '▼'}
+                    {daySets ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
                 </div>
                 {daySets && daySets.length > 0 && (
-                  <div className="mt-md">
+                  <div className="mt-lg">
                     <GroupedSets
                       day={day}
                       sets={daySets}
@@ -413,7 +430,7 @@ function GroupedSets({
   const names = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
   return (
-    <div className="space-y-lg">
+    <div className="grouped-sets">
       {names.map((name) => {
         const group = groups[name];
         const first = group[0];
@@ -439,7 +456,11 @@ function GroupedSets({
                         <span className="set-separator">)</span>
                       </>
                     )}
-                    {s.failed && <span className="set-failed">❌</span>}
+                    {s.failed && (
+                      <span className="set-failed text-danger">
+                        <XOctagon size={14} />
+                      </span>
+                    )}
                   </div>
                   <div className="set-actions">
                     <button
@@ -447,7 +468,7 @@ function GroupedSets({
                       onClick={() => onEdit(s)}
                       aria-label={`Edit set: ${formatNumber(Number(s.weight))} kg × ${s.reps} reps`}
                     >
-                      ✏️
+                      <Edit3 size={16} className="text-primary" />
                     </button>
                   </div>
                 </div>

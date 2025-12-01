@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { NotebookPen, History, LineChart, Settings as SettingsIcon } from 'lucide-react';
 
 export default function App() {
   const { pathname } = useLocation();
@@ -19,23 +20,14 @@ export default function App() {
   return (
     <div className="container">
       {!isMobile && (
-        <header className="app-header">
-          <h1 className="app-title">🏋️ Gym Tracker</h1>
-          <nav className="app-nav">
-            <Tab to="/" label="Log" active={pathname === '/'} />
-            <Tab to="/history" label="History" active={pathname.startsWith('/history')} />
-            <Tab to="/charts" label="Charts" active={pathname.startsWith('/charts')} />
-            <Tab to="/settings" label="Settings" active={pathname.startsWith('/settings')} />
-          </nav>
-        </header>
+        <nav className="app-nav">
+          <Tab to="/" label="Log" icon={NotebookPen} active={pathname === '/'} />
+          <Tab to="/history" label="History" icon={History} active={pathname.startsWith('/history')} />
+          <Tab to="/charts" label="Charts" icon={LineChart} active={pathname.startsWith('/charts')} />
+          <Tab to="/settings" label="Settings" icon={SettingsIcon} active={pathname.startsWith('/settings')} />
+        </nav>
       )}
-      
-      {isMobile && (
-        <header className="mobile-header">
-          <h1 className="mobile-title">🏋️ Gym Tracker</h1>
-        </header>
-      )}
-      
+
       <main className={`app-main ${isMobile ? 'app-main-mobile' : ''}`}>
         <Outlet />
       </main>
@@ -47,20 +39,23 @@ export default function App() {
   );
 }
 
-function Tab({ to, label, active }: { to: string; label: string; active: boolean }) {
+function Tab({ to, label, active, icon: Icon }: { to: string; label: string; active: boolean; icon?: React.ComponentType<{ className?: string; size?: number }>; }) {
   return (
     <Link to={to} className="tab-link">
-      <button className={`tab-button ${active ? 'primary' : 'ghost'}`}>{label}</button>
+      <button className={`tab-button ${active ? 'primary' : 'ghost'}`}>
+        {Icon && <Icon size={16} className="mr-sm" />}
+        {label}
+      </button>
     </Link>
   );
 }
 
 function BottomTabBar({ currentPath }: { currentPath: string }) {
   const tabs = [
-    { to: '/', label: 'Log', icon: '📝', active: currentPath === '/' },
-    { to: '/history', label: 'History', icon: '📊', active: currentPath.startsWith('/history') },
-    { to: '/charts', label: 'Charts', icon: '📈', active: currentPath.startsWith('/charts') },
-    { to: '/settings', label: 'Settings', icon: '⚙️', active: currentPath.startsWith('/settings') }
+    { to: '/', label: 'Log', icon: NotebookPen, active: currentPath === '/' },
+    { to: '/history', label: 'History', icon: History, active: currentPath.startsWith('/history') },
+    { to: '/charts', label: 'Charts', icon: LineChart, active: currentPath.startsWith('/charts') },
+    { to: '/settings', label: 'Settings', icon: SettingsIcon, active: currentPath.startsWith('/settings') }
   ];
 
   return (
@@ -68,7 +63,9 @@ function BottomTabBar({ currentPath }: { currentPath: string }) {
       {tabs.map((tab) => (
         <Link key={tab.to} to={tab.to} className="bottom-tab-link">
           <div className={`bottom-tab ${tab.active ? 'active' : ''}`}>
-            <span className="bottom-tab-icon">{tab.icon}</span>
+            <span className="bottom-tab-icon">
+              {tab.icon && <tab.icon size={20} />}
+            </span>
             <span className="bottom-tab-label">{tab.label}</span>
           </div>
         </Link>

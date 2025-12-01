@@ -1,12 +1,8 @@
 /* Chart Controls */
 .controls {
   display: grid;
-  gap: var(--spacing-base);
+  gap: var(--spacing-lg);
   grid-template-columns: 1fr;
-  padding: var(--spacing-base);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface-secondary);
-  border: 1px solid var(--color-border);
 }
 
 .controls__row {
@@ -48,8 +44,8 @@
 /* Chart Card */
 .chart-card {
   height: var(--chart-height-desktop);
-  padding: var(--spacing-base);
-  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-2xl);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
 }
@@ -68,7 +64,6 @@
 /* Responsive Breakpoints */
 @media (min-width: 600px) {
   .controls {
-    padding: var(--spacing-lg);
     gap: var(--spacing-lg);
   }
   

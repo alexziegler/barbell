@@ -1,12 +1,12 @@
 /* Form Layouts */
 .form-grid {
   display: grid;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-lg);
 }
 
 .form-row {
   display: flex;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-lg);
   flex-wrap: wrap;
 }
 

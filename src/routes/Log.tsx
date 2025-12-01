@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { NotebookPen, BarChart2, Dumbbell, Edit3, Trash2 } from 'lucide-react';
 import ExercisePicker from '../components/ExercisePicker';
 import SetEditor from '../components/SetEditor';
 import EditSetModal from '../components/EditSetModal';
@@ -238,11 +239,12 @@ export default function Log() {
       {/* Log a Set Block */}
       <div className="card">
         <h3 className="page-title">
-          📝 Log a Set
+          <NotebookPen size={18} className="text-primary" style={{ marginRight: 8 }} />
+          Log a Set
         </h3>
         
         {/* Exercise Selection */}
-        <div className="mb-lg">
+        <div className="mb-lg mt-lg">
           <ExercisePicker value={exerciseId} onChange={setExerciseId} />
         </div>
 
@@ -253,16 +255,17 @@ export default function Log() {
         
         {!exerciseId && (
           <div className="empty-state empty-state--small">
-            <div className="empty-state__icon">🏋️</div>
+            <div className="empty-state__icon text-primary"><Dumbbell size={32} /></div>
             <div className="empty-state__title">Select an exercise to start logging sets</div>
           </div>
         )}
       </div>
 
-      {/* Today's Sets Block */}
+        {/* Today's Sets Block */}
       <div className="card">
-        <h3 className="page-title">
-          📊 Today's Sets
+        <h3 className="page-title mb-base">
+          <BarChart2 size={18} className="text-primary" style={{ marginRight: 8 }} />
+          Today's Sets
           {sets.length > 0 && (
             <span className="page-subtitle">
               ({sets.length} set{sets.length > 1 ? 's' : ''})
@@ -271,7 +274,7 @@ export default function Log() {
         </h3>
         
         {groupedSets.length ? (
-          <div className="space-y-lg">
+          <div className="space-y-lg ">
                   {groupedSets.map(({ exercise, sets: exerciseSets }) => (
                       <div key={exercise.id} className="exercise-group">
                         <div className="exercise-header">
@@ -305,14 +308,14 @@ export default function Log() {
                             onClick={() => setEditingSetId(s.id)}
                             aria-label={`Edit set: ${formatNumber(Number(s.weight))} kg × ${s.reps} reps`}
                           >
-                            ✏️
+                            <Edit3 size={16} />
                           </button>
                           <button 
                             className="ghost btn-icon" 
                             onClick={() => onDelete(s.id)}
                             aria-label={`Delete set: ${formatNumber(Number(s.weight))} kg × ${s.reps} reps`}
                           >
-                            🗑️
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>
@@ -323,7 +326,7 @@ export default function Log() {
                   </div>
         ) : (
           <div className="empty-state">
-            <div className="empty-state__icon">📊</div>
+            <div className="empty-state__icon text-primary"><BarChart2 size={40} /></div>
             <div className="empty-state__title">No sets logged today yet</div>
             <div className="empty-state__subtitle">Start by selecting an exercise above</div>
           </div>

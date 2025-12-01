@@ -14,7 +14,7 @@ export default function Settings() {
       setBusy(true); setMsg(null); setErr(null);
       try {
         await recomputePRs();
-        setMsg('PRs recomputed from your existing sets. 🎉');
+        setMsg('PRs recomputed from your existing sets.');
       } catch (e: any) {
         setErr(e.message ?? 'Failed to recompute PRs');
       } finally {

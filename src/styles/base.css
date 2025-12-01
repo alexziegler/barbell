@@ -19,12 +19,12 @@ a {
 .container { 
   max-width: var(--container-max-width); 
   margin: 0 auto; 
-  padding: var(--spacing-lg); 
+  padding: var(--spacing-2xl) var(--spacing-xl); 
 }
 
 @media (max-width: 768px) {
   .container {
-    padding: var(--spacing-base);
+    padding: var(--spacing-lg) var(--spacing-base);
     padding-bottom: 0;
   }
 }
@@ -32,8 +32,9 @@ a {
 .card { 
   background: var(--color-surface); 
   border: 1px solid var(--color-border); 
-  border-radius: var(--radius-xl); 
-  padding: var(--spacing-lg); 
+  border-radius: var(--radius-2xl); 
+  padding: var(--spacing-xl); 
+  box-shadow: var(--shadow-xl);
 }
 
 .row { 
@@ -124,6 +125,6 @@ label {
   }
   
   .card {
-    padding: var(--spacing-base);
+    padding: var(--spacing-lg);
   }
 }
